@@ -1,0 +1,2 @@
+#!/bin/sh
+bm "$BOOKMARKS" | xclip -i -selection clipboard

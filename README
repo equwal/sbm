@@ -1,0 +1,26 @@
+Manage bookmarks with dmenu and a basic file.
+
+For example:
+
+https://equwal.com  Spenser Truex's website.
+
+And interact with this file using the dmenu script.
+
+== Scripts ==
+bm      search & copy, add, or edit a bookmark.
+== Install ==
+Requirements: xclip, dmenu, make
+1) Export the $BOOKMARKS variable containing the location of the bookmarks.
+~/.bashrc
+    export BOOKMARKS="~/.config/bookmarks"
+2) make install
+
+== Usage ==
+Execute
+
+search-term is an extended regex for grep.\n\nBookmark lines are Tab Separated Values\n"
+URL<tab>description\n"
+
+== Tip ==
+The bookmarks can be converted from the web browser formats using
+netscape-bookmark-converter at https://github.com/jhh/netscape-bookmark-converter
