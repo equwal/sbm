@@ -1,9 +1,0 @@
-#!/bin/sh
-
-help () {
-	exit 1
-}
-
-[ "$1" = "--help" ] || [ "$1" = "-h" ] && help
-
-sort -t2 "$BOOKMARKS" | dmenu -f -l 9 -p "bookmark:" | cut -f 1
