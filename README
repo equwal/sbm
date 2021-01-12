@@ -24,3 +24,11 @@ URL<tab>description\n"
 == Tip ==
 The bookmarks can be converted from the web browser formats using
 netscape-bookmark-converter at https://github.com/jhh/netscape-bookmark-converter
+
+== TODO ==
+Do more to munge input than just prevent duplicates:
+- remove http(s)://
+- remove www.
+Do more to munge output than just hide duplicates:
+Allow any whitespace as a separator (except newline)
+Be a simple CLI C program and use scripts for complex usage (like dmenu).
