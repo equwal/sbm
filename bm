@@ -7,29 +7,28 @@ help () {
     printf "-h, --help\n-c, --copy\n-a, --add\n-e, --edit\n"
 }
 copy () {
-    sort -t2 "$BOOKMARKS" | dmenu -l $DMENULINES -p "bookmark:" | cut -f 1 | xclip -i -selection clipboard
+    sort -t2 "$BOOKMARKS" | dmenu -l $DMENULINES -p "bookmark:" | cut -f 1 -d ' ' | xclip -i -selection clipboard
 }
-add () {
-
-}
-edit () {
-
-}
-
+# add () {
+#
+# }
+# edit () {
+#
+# }
+# plumb () {
+# }
+#
 promptflag () {
-    prompt="$(printf 'copy\nadd\nedit')"
-    action="$(dmenu -l 3 -p '$prompt')"
+    action="$(printf 'copy\nadd\nedit' | dmenu -l 3 -p 'action:')"
     [ "$action" = "copy" ] && copy
     [ "$action" = "edit" ] && edit
     [ "$action" = "add" ] && add
+    [ "$action" = "plumb" ] && plumb
 }
-argparse () {
-    arg="$1"
-    [ "$1" = '-h' ] || [ "$1" = '--help' ] && help && exit 0
-    [ "$1" = '-c' ] || [ "$1" = '--copy' ] && copy && exit 0
-    [ "$1" = '-a' ] || [ "$1" = '--add' ]  && add && exit 0
-    [ "$1" = '-e' ] || [ "$1" = '--edit' ] && edit && exit 0
-    [ -z "$1" ] && promptflag
-}
-
-[ -z "$2" ] && argparse "$1" || echo "Too many arguments: use one or none." && exit 1
+[ "$1" = '-h' ] || [ "$1" = '--help' ] && help
+[ "$1" = '-c' ] || [ "$1" = '--copy' ] && copy
+[ "$1" = '-a' ] || [ "$1" = '--add' ]  && add
+[ "$1" = '-e' ] || [ "$1" = '--edit' ] && edit
+[ "$1" = '-e' ] || [ "$1" = '--plumb' ] && plumb
+[ -z "$1" ] && promptflag
+[ -n "$2" ] && echo "Too many arguments: use one or none." && exit 1
