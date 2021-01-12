@@ -1,7 +1,7 @@
 include config.mk
 
 all:
-
+	@echo Nothing to install: use make install, make uninstall, or make dist.
 
 dist:
 	@echo creating dist tarball
