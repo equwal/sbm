@@ -7,7 +7,7 @@ help () {
     printf "-h, --help\n-c, --copy\n-a, --add\n-e, --edit\n"
 }
 copy () {
-    sort -t2 "$BOOKMARKS" | dmenu -l $DMENULINES -p "bookmark:" | cut -f 1 -d ' ' | xclip -i -selection clipboard
+    sort -t2 "$BOOKMARKS" | dmenu -i -l $DMENULINES -p "bookmark:" | cut -f 1 -d ' ' | xclip -i -selection clipboard
 }
 # add () {
 #

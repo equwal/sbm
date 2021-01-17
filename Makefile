@@ -1,7 +1,7 @@
 include config.mk
 
 all:
-	@echo Nothing to install: use make install, make uninstall, or make dist.
+	@echo Nothing to build: use make install, make uninstall, or make dist.
 
 dist:
 	@echo creating dist tarball
@@ -20,5 +20,3 @@ install:
 uninstall:
 	@echo removing scripts
 	rm -f ${DESTDIR}${PREFIX}/bin/bm
-
-
