@@ -21,14 +21,9 @@ Execute
 search-term is an extended regex for grep.\n\nBookmark lines are Tab Separated Values\n"
 URL<tab>description\n"
 
+Some ideas taken from Karl Voit:
+https://karl-voit.at/2022/01/29/How-to-Use-Tags/
+
 == Tip ==
 The bookmarks can be converted from the web browser formats using
 netscape-bookmark-converter at https://github.com/jhh/netscape-bookmark-converter
-
-== TODO ==
-Do more to munge input than just prevent duplicates:
-- remove http(s)://
-- remove www.
-Do more to munge output than just hide duplicates:
-Allow any whitespace as a separator (except newline)
-Be a simple CLI C program and use scripts for complex usage (like dmenu).
