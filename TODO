@@ -5,3 +5,4 @@
 - Allow any whitespace as a separator (except newline)
 - Be a simple CLI C program and use scripts for complex usage (like dmenu).
 - User-defined tags
+- make the use of xclip configurable (other programs exist)

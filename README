@@ -10,10 +10,21 @@ And interact with this file using the dmenu script.
 bm      search & copy, add, or edit a bookmark.
 == Install ==
 Requirements: xclip, dmenu, make
-1) Export the $BOOKMARKS variable containing the location of the bookmarks.
-~/.bashrc
-    export BOOKMARKS="~/.config/bookmarks"
-2) make install
+1) Export the $BOOKMARKS variable containing the location of the
+bookmarks. I like to use ~/.local/share/sbm to store my config.
+    mkdir -p ~/.local/share/sbm/
+    ~/.bashrc
+        export BOOKMARKS="~/.local/share/sbm/bookmarks"
+2) define your tag choices in USERTAGS and export that too. The file syntax is:
+
+    <tag><space><description><newline>
+
+    See the included usertags file for an example.
+
+    ~/.bashrc
+        export USERTAGS="~/.local/share/sbm/usertags"
+
+3) make install
 
 == Usage ==
 Execute
