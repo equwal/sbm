@@ -1,8 +1,11 @@
-- Don't copy comments, just the bookmark.
+- [X] Don't copy comments, just the bookmark.
 - Be able to add bookmarks with a dmenu prompter that shows the other bookmarks.
+
+PREVENT DUPLICATES
 - prevent duplicates via http(s) difference
 - prevent duplicates via www subdomain
 - Allow any whitespace as a separator (except newline)
-- Be a simple CLI C program and use scripts for complex usage (like dmenu).
-- User-defined tags
+
+- [X] User-defined tags
 - make the use of xclip configurable (other programs exist)
+- figure out a dmenu websearch that utilizes bookmarks too

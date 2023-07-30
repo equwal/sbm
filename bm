@@ -1,4 +1,12 @@
 #!/bin/sh
+
+# Don't forget to set $BOOKMARKS and $USERTAGS to files somewhere.
+# TODO:
+# - prevent duplicate URLs
+# - prevent duplicate tags during tag session
+# - prevent empty entries
+# - make the top tag a null tag so a user accidentally pressing ENTER twice doesn't close out the tag dialogue
+
 DMENULINES=15
 
 help () {
@@ -6,25 +14,40 @@ help () {
     echo "Flags:"
     printf "-h, --help\n-c, --copy\n-a, --add\n-e, --edit\n"
 }
+
 copy () {
     sort -t2 "$BOOKMARKS" | dmenu -i -l $DMENULINES -p "bookmark:" | cut -f 1 -d ' ' | xclip -i -selection clipboard
 }
-# add () {
-#
-# }
-# edit () {
-#
-# }
-# plumb () {
-# }
-#
+
+add () {
+    url="$(xclip -o | dmenu -p 'url: ')"
+    desc="$(dmenu -p 'description: ')"
+    tag=""
+    tags=""
+    while [ "$tag" != "done" ] ; do
+      [ ! -e "$tag" ] && tags="$tags $tag"
+      tag="$(echo "done | (choose when done)\n$(cat $USERTAGS)" | dmenu -i -l 15 -p 'tags: ' | sed 's/ *|.*$//')"
+    done
+    [ ! -e "$url" ] && printf "%s %s | %s\\n" "$url" "$desc" "$tags">>"$BOOKMARKS"
+}
+
+edit () {
+    echo "Not implemented. Edit \$BOOKMARKS yourself at $BOOKMARKS." && exit 1
+}
+
+plumb () {
+    echo "Not implemented" && exit 1
+}
+
 promptflag () {
-    action="$(printf 'copy\nadd\nedit' | dmenu -l 3 -p 'action:')"
-    [ "$action" = "copy" ] && copy
-    [ "$action" = "edit" ] && edit
-    [ "$action" = "add" ] && add
+
+    action="$(printf 'copy\nadd\nedit (not implemented)\nplumb (not implemented)' | dmenu -l 4 -p 'action:')"
+    [ "$action" = "copy" ]  && copy
+    [ "$action" = "edit" ]  && edit
+    [ "$action" = "add" ]   && add
     [ "$action" = "plumb" ] && plumb
 }
+
 [ "$1" = '-h' ] || [ "$1" = '--help' ] && help
 [ "$1" = '-c' ] || [ "$1" = '--copy' ] && copy
 [ "$1" = '-a' ] || [ "$1" = '--add' ]  && add

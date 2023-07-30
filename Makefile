@@ -7,9 +7,10 @@ dist:
 	@echo creating dist tarball
 	@mkdir -p sbm-${VERSION}-temp
 	@cp -R Makefile config.mk bm  sbm-${VERSION}-temp
-	@tar -cf sbm-${VERSION}.tar sbm-${VERSION}-temp
+	@mv sbm-${VERSION}-temp sbm-${VERSION}
+	@tar -cf sbm-${VERSION}.tar sbm-${VERSION}
 	@gzip sbm-${VERSION}.tar
-	@rm -rf sbm-${VERSION}-temp
+	@rm -rf sbm-${VERSION}
 
 install:
 	@echo installing scripts to ${DESTDIR}${PREFIX}/bin

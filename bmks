@@ -11,23 +11,65 @@ show_usage() {
 	printf "bmks: unix bookmark management that sucks less
 
 usage:
+
+bmks [displayprog] command
+
+cli commands:
 bmks help
 	show this help message
 bmks add <url>
 	add a new bookmark
 bmks del
 	remove a bookmark
+bmks plumb
+	call plumber on a bookmark
 bmks ls
 	show all bookmarks
-bmks dmenu
-	manual switch for displaying bookmarks in dmenu
-bmks fzf
-	manual switch for displaying bookmarks in fzf
+
+display program commands:
+Example: bmks dmenu copy
+
+bmks [displayprog] copy
+	copy a bookmark
+bmks [displayprog] edit
+	edit a bookmark
+bmks [displayprog] add
+	add a bookmark
+bmks [displayprog] del
+	remove a bookmark
+bmks [displayprog] plumb
+	plumb (xdg) a bookmark
+bmks [displayprog] ls
+	show all bookmarks
+
+bmks dmenu, bmks fzf
+	Deprecated no-args commands. Displays bookmarks with dmenu or fzf.
+	
 
 Configuration is done by directly editing the script. Two launchers are available (dmenu and fzf). You can specify which one to use by adding to the PREFERED_LAUNCHER variable directly in the script. Both will display a menu that will allow you to choose a bookmark and open it in your default browser.
 
-If you would prefer to have your bookmarks stored in alternate location there are also variables that can be changed for that. The default is /home/user/.bmks/urls\n"
+If you would prefer to have your bookmarks stored in alternate location there are also variables that can be changed for that. The default is /home/user/.bmks/urls\n
+Call without an argument to be prompted with dmenu."
+
+#from my bm implementation -- use this
+#copy () {
+#    sort -t2 "$BOOKMARKS" | dmenu -i -l $DMENULINES -p "bookmark:" | cut -f 1 -d ' ' | xclip -i -selection clipboard
 }
+
+promptflag () {
+    action="$(printf 'copy\nadd\nedit' | dmenu -l 3 -p 'action:')"
+    [ "$action" = "copy" ] && copy
+    [ "$action" = "edit" ] && edit
+    [ "$action" = "add" ] && add
+    [ "$action" = "plumb" ] && plumb
+}
+[ "$1" = '-h' ] || [ "$1" = '--help' ] && help
+[ "$1" = '-c' ] || [ "$1" = '--copy' ] && copy
+[ "$1" = '-a' ] || [ "$1" = '--add' ]  && add
+[ "$1" = '-e' ] || [ "$1" = '--edit' ] && edit
+[ "$1" = '-e' ] || [ "$1" = '--plumb' ] && plumb
+[ -z "$1" ] && promptflag
+
 
 bmks_add() {
 	[ -z "$url" ] && printf "Error: url must be provided\n\n" && show_usage && exit 0
