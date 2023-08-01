@@ -7,7 +7,8 @@ https://equwal.com  Spenser Truex's website.
 And interact with this file using the dmenu script.
 
 == Scripts ==
-bm      search & copy, add, or edit a bookmark.
+bm      search & copy, add, or edit a bookmark. Incomplete.
+bmks    the old version from somewhere. Will be removed soon.
 == Install ==
 Requirements: xclip, dmenu, make
 1) Export the $BOOKMARKS variable containing the location of the
