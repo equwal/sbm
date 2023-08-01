@@ -12,7 +12,7 @@ DMENULINES=15
 help () {
     echo "Call without an argument to be prompted with dmenu."
     echo "Flags:"
-    printf "-h, --help\n-c, --copy\n-a, --add\n-e, --edit\n"
+    echo '-h, --help\n-c, --copy\n-a, --add\n-e, --edit'
 }
 
 copy () {
