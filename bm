@@ -12,9 +12,8 @@ check () {
 }
 
 help () {
-    echo "Call without an argument to be prompted with dmenu."
-    echo "Flags:"
-    echo '-h, --help\n-c, --copy\n-a, --add\n-e, --edit'
+    printf 'Call without an argument to be prompted with dmenu.\n'
+    printf 'Flags:\n-h, --help\n-c, --copy\n-a, --add\n-e, --edit\n'
 }
 
 copy () {
