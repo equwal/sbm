@@ -46,12 +46,13 @@ plumb () {
 }
 
 promptflag () {
-
     action="$(printf 'copy\nadd\nedit (not implemented)\nplumb (not implemented)' | dmenu -l 4 -p 'action:')"
     [ "$action" = "copy" ]  && copy
     [ "$action" = "edit" ]  && edit
     [ "$action" = "add" ]   && add
     [ "$action" = "plumb" ] && plumb
+
+    exit 0
 }
 
 [ "$1" = '-h' ] || [ "$1" = '--help' ] && help
