@@ -3,16 +3,17 @@
 # Don't forget to set $BOOKMARKS and $USERTAGS to files somewhere.
 # TODO:
 # - prevent duplicate URLs
-# - prevent duplicate tags during tag session
-# - prevent empty entries
 # - make the top tag a null tag so a user accidentally pressing ENTER twice doesn't close out the tag dialogue
 
 DMENULINES=15
 
+check () {
+    [ -z "$1" ] && exit 1
+}
+
 help () {
-    echo "Call without an argument to be prompted with dmenu."
-    echo "Flags:"
-    echo '-h, --help\n-c, --copy\n-a, --add\n-e, --edit'
+    printf 'Call without an argument to be prompted with dmenu.\n'
+    printf 'Flags:\n-h, --help\n-c, --copy\n-a, --add\n-e, --edit\n'
 }
 
 copy () {
@@ -21,14 +22,19 @@ copy () {
 
 add () {
     url="$(xclip -o | dmenu -p 'url: ')"
-    desc="$(dmenu -p 'description: ')"
+    check "$url"
+    desc="$(printf "" | dmenu -p 'description: ')"
     tag=""
     tags=""
     while [ "$tag" != "done" ] ; do
-      [ ! -e "$tag" ] && tags="$tags $tag"
-      tag="$(echo "done | (choose when done)\n$(cat $USERTAGS)" | dmenu -i -l 15 -p 'tags: ' | sed 's/ *|.*$//')"
+      tags="$tags $tag"
+      tag="$(printf "done | (choose when done)\n$(cat $USERTAGS)" \
+            | dmenu -i -l $DMENULINES -p 'tags: ' | sed 's/ *|.*$//')"
     done
-    [ ! -e "$url" ] && printf "%s %s | %s\\n" "$url" "$desc" "$tags">>"$BOOKMARKS"
+    tags="$(printf "$tags" | tr ' ' '\n' | sort | uniq | tr '\n' ' ' \
+           | sed 's/ $//')"
+
+    printf "%s %s | %s\\n" "$url" "$desc" "$tags" >> "$BOOKMARKS"
 }
 
 edit () {
@@ -40,12 +46,13 @@ plumb () {
 }
 
 promptflag () {
-
     action="$(printf 'copy\nadd\nedit (not implemented)\nplumb (not implemented)' | dmenu -l 4 -p 'action:')"
     [ "$action" = "copy" ]  && copy
     [ "$action" = "edit" ]  && edit
     [ "$action" = "add" ]   && add
     [ "$action" = "plumb" ] && plumb
+
+    exit 0
 }
 
 [ "$1" = '-h' ] || [ "$1" = '--help' ] && help
