@@ -1,0 +1,12 @@
+#!/bin/sh
+
+# sbm-run: run bm with the tools in sbm.app. bm opens URLs in the default
+# browser and uses the clipboard of macOS. Settings in the environment win.
+
+bin=$(cd "$(dirname "$0")/bin" && pwd)
+PATH=$bin:$PATH
+SBM_OPEN=${SBM_OPEN:-open}
+SBM_COPY=${SBM_COPY:-pbcopy}
+SBM_PASTE=${SBM_PASTE:-pbpaste}
+export PATH SBM_OPEN SBM_COPY SBM_PASTE
+exec bm "$@"

@@ -1,0 +1,14 @@
+#!/bin/sh
+
+# sbm: the program of sbm.app. It opens a Terminal window that runs
+# sbm-run. The first time, macOS asks if sbm can control Terminal.
+
+run=$(cd "$(dirname "$0")/../Resources" && pwd)/sbm-run
+exec osascript \
+    -e 'on run argv' \
+    -e 'tell application "Terminal"' \
+    -e 'activate' \
+    -e 'do script (quoted form of item 1 of argv) & "; exit 0"' \
+    -e 'end tell' \
+    -e 'end run' \
+    "$run"

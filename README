@@ -232,6 +232,27 @@ such as /dev/null. To remove sbm, use Apps in the Windows settings. The
 uninstaller keeps your bookmarks. contrib/windows/build-installer.sh makes
 the installer with NSIS.
 
+== macOS ==
+Get sbm-VERSION.dmg from a release on GitHub, and drag sbm.app to
+Applications. The app contains bm, the bm-* tools and fzf, so it needs no
+other software. sbm.app opens bm in a Terminal window. The first time, macOS
+asks if sbm can control Terminal.
+
+The app has no signature from a registered developer, so macOS stops it the
+first time. To open it, use Open Anyway in System Settings, Privacy &
+Security. Or remove the quarantine attribute:
+
+    xattr -dr com.apple.quarantine /Applications/sbm.app
+
+To open sbm with a key, make a shortcut with the action Open App in the
+Shortcuts app, and give it a keyboard shortcut. macOS has function keys up
+to F20. To use the tools in a shell, add these lines to ~/.zprofile:
+
+    PATH=/Applications/sbm.app/Contents/Resources/bin:$PATH
+    export SBM_OPEN=open SBM_COPY=pbcopy SBM_PASTE=pbpaste
+
+contrib/macos/build-dmg.sh makes the image on a Mac.
+
 == Tests ==
     make check
 
