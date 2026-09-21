@@ -1,0 +1,23 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: sbm
+Upstream-Contact: Spenser Truex <truex@equwal.com>
+Source: https://github.com/equwal/sbm
+
+Files: *
+Copyright: 2024-2026 Spenser Truex <truex@equwal.com>
+License: SBM_LICENSE_TBD
+
+Files: debian/*
+Copyright: 2026 Spenser Truex <truex@equwal.com>
+License: SBM_LICENSE_TBD
+
+License: SBM_LICENSE_TBD
+ The sbm repository carries no LICENSE file and upstream has not chosen a
+ licence yet. This paragraph is a placeholder, not a licence.
+ .
+ Replace every SBM_LICENSE_TBD in this file with the licence's short name,
+ and replace this text with the licence's full text, or with a pointer into
+ /usr/share/common-licenses when the licence is one of the common ones.
+ .
+ The package cannot be uploaded to Debian until that is done: an
+ unlicensed work is not distributable.

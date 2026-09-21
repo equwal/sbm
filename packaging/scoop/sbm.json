@@ -1,0 +1,68 @@
+{
+    "##": [
+        "sbm is POSIX shell. This manifest does not port it to PowerShell: it",
+        "installs the scripts and generates a .cmd per script that runs them",
+        "through the sh.exe that comes with Git for Windows. That is why git is",
+        "a dependency. The menu is fzf; dmenu is X11 only and has no Windows",
+        "build, so it is neither installed nor mentioned as an alternative.",
+        "",
+        "license: upstream has not chosen one yet and ships no LICENSE file.",
+        "Replace SBM_LICENSE_TBD with the SPDX identifier.",
+        "hash: no release tag exists yet. Replace SBM_SHA256_TBD with the",
+        "sha256 of the tarball, or run: scoop checkver sbm <bucket> -u"
+    ],
+    "version": "0.3",
+    "description": "Bookmark manager made of POSIX sh scripts, driven by fzf",
+    "homepage": "https://github.com/equwal/sbm",
+    "license": "SBM_LICENSE_TBD",
+    "depends": [
+        "git",
+        "fzf"
+    ],
+    "suggest": {
+        "JSON processing (bm-import of Chromium bookmark files)": "jq"
+    },
+    "url": "https://github.com/equwal/sbm/archive/refs/tags/v0.3.tar.gz",
+    "hash": "SBM_SHA256_TBD",
+    "extract_dir": "sbm-0.3",
+    "pre_install": [
+        "$lines = @(",
+        "  '@echo off',",
+        "  'setlocal',",
+        "  'if not defined SBM_COPY set \"SBM_COPY=clip\"',",
+        "  'if not defined SBM_PASTE set \"SBM_PASTE=powershell -NoProfile -Command Get-Clipboard\"',",
+        "  'set \"SBM_SH=\"',",
+        "  'for %%I in (sh.exe) do if not defined SBM_SH if not \"%%~$PATH:I\"==\"\" set \"SBM_SH=%%~$PATH:I\"',",
+        "  'for %%I in (\"%SCOOP%\\apps\\git\\current\\bin\\sh.exe\" \"%USERPROFILE%\\scoop\\apps\\git\\current\\bin\\sh.exe\" \"%ProgramFiles%\\Git\\bin\\sh.exe\" \"%LOCALAPPDATA%\\Programs\\Git\\bin\\sh.exe\") do if not defined SBM_SH if exist %%I set \"SBM_SH=%%~I\"',",
+        "  'if not defined SBM_SH echo sbm: no POSIX sh found. Install Git: scoop install git 1>&2',",
+        "  'if not defined SBM_SH exit /b 127'",
+        ")",
+        "foreach ($t in 'bm','bm-migrate','bm-import','bm-check','bm-html','bm-title','bm-commit') {",
+        "  ($lines + ('\"%SBM_SH%\" \"%~dp0' + $t + '\" %*')) | Set-Content -LiteralPath \"$dir\\$t.cmd\" -Encoding ASCII",
+        "}"
+    ],
+    "bin": [
+        "bm.cmd",
+        "bm-migrate.cmd",
+        "bm-import.cmd",
+        "bm-check.cmd",
+        "bm-html.cmd",
+        "bm-title.cmd",
+        "bm-commit.cmd"
+    ],
+    "notes": [
+        "The menu is fzf. dmenu is an X11 program and does not exist here.",
+        "SBM_COPY and SBM_PASTE default to clip and Get-Clipboard.",
+        "Set an opener yourself, for example:",
+        "  setx SBM_OPEN \"powershell -NoProfile -Command Start-Process\"",
+        "Example tag and engine files are in the app directory; copy usertags",
+        "and engines to ~/.local/share/sbm/ (the HOME that Git Bash uses)."
+    ],
+    "checkver": {
+        "github": "https://github.com/equwal/sbm"
+    },
+    "autoupdate": {
+        "url": "https://github.com/equwal/sbm/archive/refs/tags/v$version.tar.gz",
+        "extract_dir": "sbm-$version"
+    }
+}

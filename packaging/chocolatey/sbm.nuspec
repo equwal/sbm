@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2015/06/nuspec.xsd">
+  <metadata>
+    <id>sbm</id>
+    <version>0.3</version>
+    <packageSourceUrl>https://github.com/equwal/sbm/tree/master/packaging/chocolatey</packageSourceUrl>
+    <owners>equwal</owners>
+    <title>sbm (bookmark manager)</title>
+    <authors>Spenser Truex</authors>
+    <projectUrl>https://github.com/equwal/sbm</projectUrl>
+    <!--
+      Upstream has not chosen a licence yet and the repository has no LICENSE
+      file. licenseUrl must parse as a URL or "choco pack" refuses the
+      package outright (CHCU0001), so the placeholder token is carried in the
+      path instead of standing alone. The URL below does not resolve.
+      Replace SBM_LICENSE_TBD with the real file name, for example
+      https://github.com/equwal/sbm/blob/master/LICENSE
+    -->
+    <licenseUrl>https://github.com/equwal/sbm/blob/master/SBM_LICENSE_TBD</licenseUrl>
+    <requireLicenseAcceptance>false</requireLicenseAcceptance>
+    <projectSourceUrl>https://github.com/equwal/sbm</projectSourceUrl>
+    <docsUrl>https://github.com/equwal/sbm/blob/master/README</docsUrl>
+    <bugTrackerUrl>https://github.com/equwal/sbm/issues</bugTrackerUrl>
+    <tags>sbm bookmarks bookmark-manager fzf posix shell cli suckless</tags>
+    <summary>Bookmark manager made of POSIX sh scripts, driven by fzf</summary>
+    <description><![CDATA[
+sbm keeps bookmarks in one tab separated file: URL, description, tags.
+`bm` picks one from a menu and opens it, copies it, edits it or deletes it.
+Text that is no bookmark is opened as an address or searched for on the web.
+
+The other programs are small filters over bookmark lines: `bm-import`,
+`bm-check`, `bm-html`, `bm-migrate`, `bm-title` and `bm-commit`.
+
+### What this package does
+
+sbm is POSIX shell. This package does not port it to PowerShell. It installs
+the scripts and generates `.cmd` shims that run them through the `sh.exe` that
+comes with Git for Windows, which is why `git` is a dependency.
+
+### What works on Windows
+
+* The menu is **fzf**. `bm` picks fzf when there is no X11 or Wayland
+  display, which is always the case here.
+* Clipboard: the shims default `SBM_COPY` to `clip` and `SBM_PASTE` to
+  `powershell -NoProfile -Command Get-Clipboard` when you have not set them.
+* Opening URLs: set `SBM_OPEN` yourself, for example
+
+        setx SBM_OPEN "powershell -NoProfile -Command Start-Process"
+
+* `bm-title`, `bm-check`: need `curl`, which ships with Windows 10 1803 and
+  later, and with Git for Windows.
+* `bm-import` of a Chromium JSON bookmark file needs `jq`
+  (`choco install jq`).
+* `bm-commit` needs `git`, which is already a dependency.
+
+### What does not work on Windows
+
+* **dmenu.** It is an X11 program. There is no dmenu here and none is
+  installed. Everything menu driven goes through fzf.
+* `xclip`, `xsel`, `wl-clipboard`, `xdg-open`: X11 and Wayland programs,
+  replaced by the `SBM_COPY`, `SBM_PASTE` and `SBM_OPEN` settings above.
+
+Bookmarks live in `%LOCALAPPDATA%` terms under the Git Bash HOME:
+`~/.local/share/sbm/bookmarks`. Set `BOOKMARKS` to move it.
+]]></description>
+    <releaseNotes>https://github.com/equwal/sbm/commits/master</releaseNotes>
+    <dependencies>
+      <!-- git supplies sh.exe; fzf is the menu. -->
+      <dependency id="git" version="2.30.0" />
+      <dependency id="fzf" version="0.30.0" />
+    </dependencies>
+  </metadata>
+  <files>
+    <file src="tools\**" target="tools" />
+  </files>
+</package>

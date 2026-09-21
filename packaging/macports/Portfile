@@ -1,0 +1,85 @@
+# -*- coding: utf-8; mode: tcl; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- vim:fenc=utf-8:et:sw=4:ts=4:sts=4
+
+PortSystem          1.0
+PortGroup           github 1.0
+
+github.setup        equwal sbm 0.3 v
+categories          www
+platforms           any
+supported_archs     noarch
+maintainers         {equwal.com:truex @equwal}
+
+description         Bookmark manager made of POSIX sh scripts, driven by fzf
+
+long_description    sbm keeps bookmarks in one tab separated file: URL, \
+                    description, tags. bm picks one with fzf and opens it, \
+                    copies it, edits it or deletes it. Text that is no \
+                    bookmark is opened as an address or searched for on the \
+                    web. The rest are small filters over bookmark lines: \
+                    bm-import, bm-check, bm-html, bm-migrate, bm-title and \
+                    bm-commit. Everything is POSIX sh and POSIX utilities; \
+                    nothing is compiled.
+
+homepage            https://github.com/equwal/sbm
+
+# Upstream has not chosen a licence yet and ships no LICENSE file. Replace
+# SBM_LICENSE_TBD with a name from
+# https://trac.macports.org/wiki/PortfileRecipes#license
+# "port lint" rejects the token, which is intended.
+license             SBM_LICENSE_TBD
+
+# No release tag exists yet, so there is nothing to hash. Replace all three
+# tokens at once by running: port -v checksum sbm
+checksums           rmd160  SBM_RMD160_TBD \
+                    sha256  SBM_SHA256_TBD \
+                    size    SBM_SIZE_TBD
+
+# dmenu is an X11 program; on macOS fzf is the practical menu, so it is the
+# only hard runtime dependency. bm picks fzf on its own when there is no
+# display.
+depends_run         port:fzf
+
+use_configure       no
+
+# Nothing is compiled; the upstream "all" target only prints a reminder.
+build {}
+
+# destroot.destdir already carries DESTDIR=${destroot}. PREFIX has to be on
+# the command line: config.mk assigns it plainly, and a plain assignment in a
+# makefile wins over the environment.
+destroot.args       PREFIX=${prefix}
+
+post-destroot {
+    xinstall -d ${destroot}${prefix}/share/doc/${name}
+    xinstall -m 0644 -W ${worksrcpath} README TODO \
+        ${destroot}${prefix}/share/doc/${name}
+
+    xinstall -d ${destroot}${prefix}/share/examples/${name}
+    xinstall -m 0644 -W ${worksrcpath} usertags engines \
+        ${destroot}${prefix}/share/examples/${name}
+}
+
+# The suite scripts the menu, the clipboard and curl, so it needs no display
+# and no network. "make check" is not used: it also runs shellcheck when one
+# happens to be installed, which would make the result depend on the host.
+test.run            yes
+test.cmd            /bin/sh
+test.target
+test.args           test/run.sh
+
+notes "
+bm does not auto-detect the macOS clipboard or opener. Set them yourself:
+
+    export SBM_COPY=pbcopy
+    export SBM_PASTE=pbpaste
+    export SBM_OPEN=open
+
+The menu is fzf. dmenu needs X11 and is not installed by this port.
+
+Example tag and search-engine files are in
+${prefix}/share/examples/${name}; copy them to ~/.local/share/sbm/ if you
+want them.
+
+Optional: jq, for importing Chromium JSON bookmark files with bm-import.
+curl and git come with macOS and the Command Line Tools.
+"

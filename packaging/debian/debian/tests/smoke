@@ -1,0 +1,28 @@
+#!/bin/sh
+# Exercise the installed programs. --list and --merge are the two actions
+# that never open a menu, so this needs no display and no menu program.
+set -e
+
+work=${AUTOPKGTEST_TMP:?AUTOPKGTEST_TMP is not set}
+
+BOOKMARKS="$work/bookmarks"
+USERTAGS="$work/usertags"
+export BOOKMARKS USERTAGS
+SBM_GIT=0
+SBM_FETCH=0
+export SBM_GIT SBM_FETCH
+
+printf '%s\t%s\t%s\n' 'https://equwal.com' "Spenser Truex's website" 'users' \
+	| bm --merge
+
+bm --list | grep -q 'https://equwal.com'
+
+# The same URL again, with a trailing slash, must be refused as a duplicate.
+printf '%s\t%s\t%s\n' 'https://equwal.com/' 'duplicate' 'users' \
+	| bm --merge | grep -q 'skipped 1'
+
+test "$(bm --list | wc -l)" = 1
+
+bm-html | grep -q '<li>'
+
+echo 'smoke: ok'

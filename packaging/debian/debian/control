@@ -1,0 +1,45 @@
+Source: sbm
+Section: web
+Priority: optional
+Maintainer: Spenser Truex <truex@equwal.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ shellcheck <!nocheck>,
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/equwal/sbm
+Vcs-Browser: https://github.com/equwal/sbm
+Vcs-Git: https://github.com/equwal/sbm.git
+
+Package: sbm
+Architecture: all
+# Depends can say "a or b", so the menu and the clipboard are honest here.
+# sh and awk are not listed: dash and mawk are Priority: required.
+Depends:
+ ${misc:Depends},
+ dmenu | fzf,
+Recommends:
+ xclip | xsel | wl-clipboard,
+ xdg-utils,
+Suggests:
+ curl,
+ jq,
+ git,
+Description: bookmark manager made of POSIX sh scripts
+ sbm keeps bookmarks in one tab separated file: URL, description, tags.
+ Lines starting with # are ignored, so cut, grep, awk and an editor work on
+ it as well as the tools do.
+ .
+ bm picks a bookmark with dmenu, or with fzf on a bare terminal, and then
+ opens it, copies it, edits it or deletes it. Text that is no bookmark is
+ opened as an address or searched for on the web.
+ .
+ The rest are small filters that read and write bookmark lines:
+  * bm-import turns a browser's bookmarks into bookmark lines;
+  * bm-check reports dead and permanently moved links;
+  * bm-html writes the bookmarks as one self-contained web page;
+  * bm-migrate converts a file from the old sbm format;
+  * bm-title prints a page's title, which bm --add offers as a description;
+  * bm-commit keeps the bookmark file's history in git.
+ .
+ Everything is POSIX sh and POSIX utilities. Nothing is compiled.

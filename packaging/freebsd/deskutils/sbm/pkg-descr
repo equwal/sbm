@@ -1,0 +1,15 @@
+sbm keeps bookmarks in one tab separated file: URL, description, tags. Lines
+starting with # are ignored, so cut, grep, awk and an editor work on it as
+well as the tools do.
+
+bm picks a bookmark with dmenu, or with fzf on a bare terminal, and then
+opens it, copies it, edits it or deletes it. Text that is no bookmark is
+opened as an address or searched for on the web.
+
+The rest are small filters that read and write bookmark lines: bm-import
+turns a browser's bookmarks into bookmark lines, bm-check reports dead links,
+bm-html writes a searchable web page, bm-migrate converts the old file
+format, bm-title prints a page's title and bm-commit keeps the bookmark
+file's history in git.
+
+Everything is POSIX sh and POSIX utilities. Nothing is compiled.

@@ -1,0 +1,44 @@
+# Template file for 'sbm'
+pkgname=sbm
+version=0.3
+revision=1
+build_style=gnu-makefile
+make_install_args="PREFIX=/usr"
+# xbps-src has no "a or b" operator. A menu is required; fzf needs no display
+# and is the hard dependency. dmenu is in the tree too: install it as well if
+# you run X11.
+depends="fzf"
+checkdepends="shellcheck"
+short_desc="Bookmark manager made of POSIX sh scripts, driven by fzf"
+maintainer="Spenser Truex <truex@equwal.com>"
+# Upstream has not chosen a licence yet and ships no LICENSE file. Replace
+# SBM_LICENSE_TBD with the SPDX identifier and add "vlicense LICENSE" to
+# post_install. xlint rejects the token, which is intended.
+license="SBM_LICENSE_TBD"
+homepage="https://github.com/equwal/sbm"
+distfiles="https://github.com/equwal/sbm/archive/refs/tags/v${version}.tar.gz"
+# No release tag exists yet, so there is nothing to hash. Replace
+# SBM_SHA256_TBD with the output of: xgensum -i srcpkgs/sbm/template
+checksum=SBM_SHA256_TBD
+
+# Optional at runtime, none of them pulled in:
+#   curl       bm-title, bm-check
+#   jq         bm-import of Chromium JSON bookmark files
+#   git        bm-commit
+#   xclip      clipboard under X11 (or xsel, or wl-clipboard under Wayland)
+#   xdg-utils  opening URLs with xdg-open
+
+do_check() {
+	# make check runs shellcheck -s sh over every script, then the test
+	# suite. The suite scripts the menu, the clipboard and curl: no display,
+	# no network.
+	make check
+}
+
+post_install() {
+	vdoc README
+	vdoc TODO
+	vmkdir usr/share/examples/sbm
+	vcopy usertags usr/share/examples/sbm
+	vcopy engines usr/share/examples/sbm
+}
