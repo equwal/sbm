@@ -17,7 +17,7 @@ check:
 dist:
 	@echo creating dist tarball
 	@mkdir -p sbm-${VERSION}-temp
-	@cp -R Makefile config.mk README TODO ${SCRIPTS} usertags engines test contrib sbm-${VERSION}-temp
+	@cp -R Makefile config.mk README TODO LICENSE ${SCRIPTS} usertags engines test contrib sbm-${VERSION}-temp
 	@mv sbm-${VERSION}-temp sbm-${VERSION}
 	@tar -cf sbm-${VERSION}.tar sbm-${VERSION}
 	@gzip sbm-${VERSION}.tar

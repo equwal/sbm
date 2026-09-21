@@ -29,6 +29,7 @@ mkdir -p "$app/Contents/MacOS"
 make -s -C "$top" install PREFIX="$app/Contents/Resources" >/dev/null
 cp "$here/sbm" "$app/Contents/MacOS/sbm"
 cp "$here/sbm-run" "$app/Contents/Resources/sbm-run"
+cp "$top/LICENSE" "$app/Contents/Resources/LICENSE"
 chmod 755 "$app/Contents/MacOS/sbm" "$app/Contents/Resources/sbm-run"
 sed "s/@VERSION@/$version/g" "$here/Info.plist" > "$app/Contents/Info.plist"
 plutil -lint "$app/Contents/Info.plist" >/dev/null

@@ -39,7 +39,7 @@ make -s -C "$top" install PREFIX="$work" >/dev/null
 cp "$here/fzf" "$work/bin/"
 cp "$here/sbm-setup" "$work/libexec/"
 cp "$here/sbm.sh" "$work/etc/"
-cp "$top/engines" "$top/usertags" "$work/share/"
+cp "$top/engines" "$top/usertags" "$top/LICENSE" "$work/share/"
 
 url=https://github.com/junegunn/fzf/releases/download/v$fzf_version
 curl -fsSL -o "$work/fzf.zip" "$url/fzf-$fzf_version-windows_amd64.zip"

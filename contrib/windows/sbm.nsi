@@ -94,6 +94,7 @@ Section
   SetOutPath "$Cygwin\usr\local\share\sbm"
   File "${SRC}\share\engines"
   File "${SRC}\share\usertags"
+  File "${SRC}\share\LICENSE"
   SetOutPath "$Cygwin\etc\profile.d"
   File "${SRC}\etc\sbm.sh"
 
@@ -173,6 +174,7 @@ Section Uninstall
   RMDir "$Cygwin\usr\local\libexec\sbm"
   Delete "$Cygwin\usr\local\share\sbm\engines"
   Delete "$Cygwin\usr\local\share\sbm\usertags"
+  Delete "$Cygwin\usr\local\share\sbm\LICENSE"
   RMDir "$Cygwin\usr\local\share\sbm"
   Delete "$Cygwin\etc\profile.d\sbm.sh"
   SetShellVarContext current
