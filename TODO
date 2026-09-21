@@ -1,11 +1,17 @@
 - [X] Don't copy comments, just the bookmark.
-- Be able to add bookmarks with a dmenu prompter that shows the other bookmarks.
+- [X] Be able to add bookmarks with a prompter that shows the other bookmarks.
+      (fzf: ctrl-a from the list; dmenu still asks for the action first)
 
 PREVENT DUPLICATES
-- prevent duplicates via http(s) difference
-- prevent duplicates via www subdomain
-- Allow any whitespace as a separator (except newline)
+- [X] prevent duplicates via http(s) difference
+- [X] prevent duplicates via www subdomain
+- [X] Allow any whitespace as a separator (except newline)
+      (the file is now tab separated; bm --migrate converts old files)
 
-- [X] User-defined tags
-- make the use of xclip configurable (other programs exist)
+- [X] User-defined tags, and new ones typed into the tag menu
+- [X] make the use of xclip configurable (other programs exist)
+- [X] fzf as a second menu, wl-clipboard and xsel as clipboards
+- [X] open, edit, delete, list, search, filter by tag, sort
+- [X] import from browsers, dead link check, git history
 - figure out a dmenu websearch that utilizes bookmarks too
+- one-screen browsing for dmenu (it cannot bind keys; maybe a second menu)

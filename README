@@ -1,41 +1,160 @@
-Manage bookmarks with dmenu and a basic file.
+Manage bookmarks with a menu program and a basic file.
+
+The file is Tab Separated Values, one bookmark per line:
+
+    URL<tab>description<tab>tag tag tag
 
 For example:
 
-https://equwal.com  Spenser Truex's website.
+    https://equwal.com	Spenser Truex's website.	users
 
-And interact with this file using the dmenu script.
+Lines starting with # are ignored. Interact with the file using the bm
+script, or any other tool: cut, grep, awk and your editor all work.
 
-== Scripts ==
-bm      search & copy, add, or edit a bookmark. Incomplete.
-bmks    the old version from somewhere. Will be removed soon.
+== Requirements ==
+dmenu (or fzf), one of xclip, xsel or wl-clipboard, a POSIX sh, awk, make.
+Optional: curl (page titles, --check), jq (--import of Chromium files), git.
+
 == Install ==
-Requirements: xclip, dmenu, make
-1) Export the $BOOKMARKS variable containing the location of the
-bookmarks. I like to use ~/.local/share/sbm to store my config.
-    mkdir -p ~/.local/share/sbm/
-    ~/.bashrc
-        export BOOKMARKS="~/.local/share/sbm/bookmarks"
-2) define your tag choices in USERTAGS and export that too. The file syntax is:
+    make install
 
-    <tag><space><description><newline>
+installs bm to /usr/local/bin. To install somewhere you own instead:
 
-    See the included usertags file for an example.
+    make PREFIX="$HOME/.local" install
 
-    ~/.bashrc
-        export USERTAGS="~/.local/share/sbm/usertags"
+== Setup ==
+Nothing is required. Bookmarks are kept in ~/.local/share/sbm/bookmarks
+($XDG_DATA_HOME is honoured) and the file is created on first use.
 
-3) make install
+Tag choices are read from ~/.local/share/sbm/usertags. The file syntax is:
+
+    <tag><space>|<space><description><newline>
+
+Start from the included example, or from nothing: a tag typed into the tag
+menu that is not in the file yet is added to it.
+
+    mkdir -p ~/.local/share/sbm
+    cp usertags ~/.local/share/sbm/
+
+To keep the files somewhere else, export their locations from your shell's
+startup file. Use $HOME here: a ~ inside quotes is not expanded.
+
+    export BOOKMARKS="$HOME/notes/bookmarks"
+    export USERTAGS="$HOME/notes/usertags"
 
 == Usage ==
-Execute
+    bm                   dmenu: prompt for an action. fzf: browse (see below)
+    bm -c, --copy        copy a bookmark's URL to the clipboard
+    bm -o, --open        open a bookmark in the default browser
+                         (-p, --plumb is the same)
+    bm -a, --add [url]   add a bookmark
+    bm -e, --edit        open the bookmark file in $VISUAL/$EDITOR at a bookmark
+    bm -d, --delete      delete a bookmark
+    bm -l, --list        print the bookmarks
+    bm -s, --search ERE  print the bookmarks matching an extended regex
+    bm --import SRC      import bookmarks from a browser (see below)
+    bm --check           report dead and permanently moved links
+    bm --migrate         convert a file from the old format (see below)
+    bm -h, --help
 
-search-term is an extended regex for grep.\n\nBookmark lines are Tab Separated Values\n"
-URL<tab>description\n"
+    -t, --tag TAG        restrict any of the above to one tag
+    -S, --sort MODE      used (default), recent, url, desc or tag
+    --print              with --copy or --open, print the URL instead
 
+== The menu ==
+With a display bm uses dmenu, as it always has; fzf is only used when dmenu
+is missing or there is no X11 or Wayland display. SBM_MENU=dmenu or
+SBM_MENU=fzf settles it either way.
+
+With dmenu, tags are chosen one at a time until "done" is picked or the menu
+is closed. With fzf they are chosen all at once: TAB marks a tag, ENTER
+confirms. In both, typing a tag that does not exist creates it.
+
+With fzf, plain "bm" is one screen for everything:
+
+    ENTER   open            ctrl-a  add            ctrl-t  filter by tag
+    ctrl-y  copy            ctrl-d  delete (asks)  ctrl-s  next sort order
+    ESC     leave           ctrl-e  edit
+
+== Adding ==
+Without a url, bm offers one: the X11 primary selection, or the clipboard,
+when it holds a URL.
+
+The description defaults to the page's <title>, fetched with curl (3 second limit; SBM_FETCH=0 turns this off). With fzf,
+ENTER accepts the default. With dmenu the default is the one entry in the
+menu: Return accepts it, and Shift-Return sends exactly what you typed.
+
+Adding refuses a URL that is already bookmarked. URLs are compared without
+their scheme, a leading www. and trailing slashes, so http://www.example.com/
+and https://example.com are the same bookmark.
+
+== Sorting ==
+    used     most opened or copied first, then by url (the default)
+    recent   most recently added first
+    url, desc, tag
+
+Set a default with SBM_SORT. Use counts live in "$BOOKMARKS.usage", so the
+bookmark file itself stays a plain list.
+
+== Importing ==
+    bm --import bookmarks.html      # the HTML export of any browser
+    bm --import vivaldi             # or chrome, brave, edge, chromium
+    bm --import path/to/Bookmarks   # a Chromium JSON file (needs jq)
+
+Folder names become tags ("Dev Tools" becomes dev-tools), bookmarks you
+already have are skipped, and anything that is not a web, ftp or file URL is
+dropped. Importing twice adds nothing.
+
+== History and sync with git ==
+If the directory holding the bookmark file is itself a git repository, every
+add, delete, edit, import and migrate is committed. bm never pushes or pulls.
+
+    cd ~/.local/share/sbm && git init
+    printf '%s\n' '*.usage' '*.bak' > .gitignore
+
+A bookmark file that merely sits somewhere inside a bigger repository (your
+dotfiles, say) is left alone unless SBM_GIT=1. SBM_GIT=0 turns commits off.
+
+== Configuration ==
+All through the environment, all optional.
+
+    BOOKMARKS     bookmark file
+    USERTAGS      tag choices file
+    DMENULINES    lines shown by dmenu (default 15)
+    SBM_MENU      dmenu, fzf, or a custom command
+    SBM_FZF_OPTS  extra options for every fzf call
+    SBM_SORT      default sort order
+    SBM_COPY      command that reads the new clipboard contents from stdin
+    SBM_PASTE     command that writes the clipboard contents to stdout
+    SBM_OPEN      command that opens the URL given as its argument
+    SBM_FETCH     0 to never download a page for its title
+    SBM_GIT       0 never commit, 1 commit even inside a bigger repository
+
+The clipboard is the first of wl-copy, xclip and xsel that exists, and URLs
+are opened with xdg-open.
+
+A custom SBM_MENU is called with the choices on stdin as one of:
+
+    <command> pick  <prompt>     print the chosen line
+    <command> multi <prompt>     print every chosen line
+    <command> ask   <prompt>     print free text; stdin holds a default, if any
+
+Printing nothing means the user cancelled. test/fakemenu is a small example.
+
+== Migrating from the old format ==
+Earlier versions wrote "URL description | tag tag". Convert such a file with
+
+    bm --migrate
+
+The original is kept next to it with a .bak suffix, and lines that are
+already tab separated are left alone.
+
+== Tests ==
+    make check
+
+runs shellcheck, when installed, and test/run.sh. The tests script dmenu,
+fzf and curl, so they need no display and no network.
+
+== Credits ==
 Some ideas taken from Karl Voit:
 https://karl-voit.at/2022/01/29/How-to-Use-Tags/
-
-== Tip ==
-The bookmarks can be converted from the web browser formats using
-netscape-bookmark-converter at https://github.com/jhh/netscape-bookmark-converter

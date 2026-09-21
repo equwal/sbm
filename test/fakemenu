@@ -1,0 +1,54 @@
+#!/bin/sh
+
+# Scripted stand-in for a menu program. Each call consumes the first line of
+# $SBM_TEST_ANSWERS as the "user's" answer; an empty or missing line means the
+# menu was closed without choosing. The answer <default> accepts whatever the
+# menu offered first. With $SBM_TEST_LOG set, every call's name and arguments
+# are appended to that file.
+#
+# Works as a custom $SBM_MENU (called as: fakemenu pick|multi|ask <prompt>) and,
+# when installed under the name dmenu, as a fake dmenu.
+
+name=$(basename "$0")
+[ -z "$SBM_TEST_LOG" ] || printf '%s %s\n' "$name" "$*" >> "$SBM_TEST_LOG"
+
+case $name in
+    dmenu) kind=dmenu ;;
+    *)     kind=$1 ;;
+esac
+
+choices=$(cat)
+answer=$(sed -n 1p "$SBM_TEST_ANSWERS")
+sed 1d "$SBM_TEST_ANSWERS" > "$SBM_TEST_ANSWERS.next"
+mv "$SBM_TEST_ANSWERS.next" "$SBM_TEST_ANSWERS"
+
+[ -n "$answer" ] || exit 1
+
+if [ "$answer" = '<default>' ]; then
+    printf '%s\n' "$choices" | sed -n 1p
+    exit 0
+fi
+
+# Print the first choice containing $1, or $1 itself when nothing matches
+# (menus let the user type text that is not in the list).
+choose () {
+    match=$(printf '%s\n' "$choices" | grep -F -- "$1" | head -n 1)
+    printf '%s\n' "${match:-$1}"
+}
+
+case $kind in
+    ask)
+        printf '%s\n' "$answer"
+        ;;
+    multi)
+        # The answer is a space separated list of tag names; unknown ones are
+        # typed in by the "user".
+        for word in $answer; do
+            match=$(printf '%s\n' "$choices" | grep -- "^$word " | head -n 1)
+            printf '%s\n' "${match:-$word}"
+        done
+        ;;
+    *)
+        choose "$answer"
+        ;;
+esac

@@ -1,0 +1,43 @@
+{
+   "checksum": "0",
+   "roots": {
+      "bookmark_bar": {
+         "children": [
+            { "name": "Bar site", "type": "url", "url": "https://bar.example/" },
+            {
+               "name": "News & Blogs",
+               "type": "folder",
+               "children": [
+                  { "name": "A\tblog", "type": "url", "url": "https://blog.example/feed" },
+                  {
+                     "name": "Tech",
+                     "type": "folder",
+                     "children": [
+                        { "name": "Deep", "type": "url", "url": "https://deep.example/" }
+                     ]
+                  }
+               ]
+            }
+         ],
+         "name": "Bookmarks bar",
+         "type": "folder"
+      },
+      "other": {
+         "children": [
+            { "name": "Settings", "type": "url", "url": "chrome://settings/" },
+            { "name": "Bar dupe", "type": "url", "url": "http://www.bar.example" }
+         ],
+         "name": "Other bookmarks",
+         "type": "folder"
+      },
+      "trash": {
+         "children": [
+            { "name": "Deleted", "type": "url", "url": "https://deleted.example/" }
+         ],
+         "name": "Trash",
+         "type": "folder"
+      },
+      "sync_transaction_version": "1"
+   },
+   "version": 1
+}
