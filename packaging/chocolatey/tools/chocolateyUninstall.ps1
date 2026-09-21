@@ -2,7 +2,7 @@ $ErrorActionPreference = 'Stop'
 
 $toolsDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
-$scripts = @('bm', 'bm-migrate', 'bm-import', 'bm-check', 'bm-html', 'bm-title', 'bm-commit')
+$scripts = @('bm', 'bm-migrate', 'bm-import', 'bm-check', 'bm-html', 'bm-title', 'bm-commit', 'bm-watch')
 
 foreach ($s in $scripts) {
   $cmdPath = Join-Path $toolsDir "$s.cmd"

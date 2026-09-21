@@ -23,6 +23,7 @@ other Unix tools, and you install only the ones you use:
     bm-migrate  the old sbm file format  -> bookmark lines
     bm-title    a URL                    -> the page's title
     bm-commit   commit the bookmark file to git
+    bm-watch    browser bookmarks        -> bm, now and after each change
 
     bm-import bookmarks.html | bm --merge
     bm --tag code --list | bm-check -
@@ -162,6 +163,12 @@ profiles are in ~/.config, in ~/Library/Application Support on macOS, or in
 dev-tools). bm --merge skips what you already have, so importing twice adds
 nothing. To sync new browser bookmarks into bm, run the same command again.
 Look before you merge: bm-import prints plain bookmark lines.
+
+bm-watch does this import at once, and again each time that the bookmark
+file of a profile changes. It only adds bookmarks, and it never writes to
+the browser:
+
+    bm-watch brave &
 
 == Dead links ==
     bm-check

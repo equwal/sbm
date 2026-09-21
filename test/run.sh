@@ -308,7 +308,7 @@ for gone in '--import x' --check --migrate '-s x'; do
 done
 
 bad=
-for script in bm bm-migrate bm-import bm-check bm-html bm-title bm-commit; do
+for script in bm bm-migrate bm-import bm-check bm-html bm-title bm-commit bm-watch; do
     [ "$(sed -n 1p "$top/$script")" = '#!/bin/sh' ] || bad="$bad $script"
 done
 eq 'every script asks for /bin/sh' "$bad" ''
@@ -521,6 +521,48 @@ if command -v jq >/dev/null 2>&1; then
         "$(HOME=$work/nohome XDG_CONFIG_HOME='' LOCALAPPDATA=$work/win $IMPORT edge)" "$json_rows"
     HOME=$work/nohome XDG_CONFIG_HOME='' LOCALAPPDATA='' $IMPORT brave 2>/dev/null
     eq 'bm-import fails when it finds no profiles of the browser' "$?" '1'
+    eq 'bm-import --files lists the bookmark file of each profile' \
+        "$(HOME=$work/linux XDG_CONFIG_HOME='' LOCALAPPDATA='' $IMPORT --files brave | sed "s|^$work/linux/||")" \
+        "$(printf '%s\n' '.config/BraveSoftware/Brave-Browser/Default/Bookmarks' \
+            '.config/BraveSoftware/Brave-Browser/Profile 1/Bookmarks')"
+    $IMPORT --files "$here/fixtures/chromium.json" 2>/dev/null
+    eq 'bm-import --files wants a browser name' "$?" '2'
+
+    # bm-watch runs bm-import and bm by name.
+    WATCH="${SBM_SH:-sh} $top/bm-watch"
+    reset
+    eq 'bm-watch -1 imports the bookmarks of every profile' \
+        "$(PATH="$top:$PATH" HOME=$work/linux XDG_CONFIG_HOME='' LOCALAPPDATA='' $WATCH -1 brave)" \
+        'added 3, skipped 5 duplicates'
+    eq 'bm-watch -1 again adds nothing' \
+        "$(PATH="$top:$PATH" HOME=$work/linux XDG_CONFIG_HOME='' LOCALAPPDATA='' $WATCH -1 brave)" \
+        'added 0, skipped 8 duplicates'
+    $WATCH -1 2>/dev/null
+    eq 'bm-watch wants a browser' "$?" '2'
+    PATH="$top:$PATH" HOME=$work/nohome XDG_CONFIG_HOME='' LOCALAPPDATA='' $WATCH -1 brave 2>/dev/null
+    eq 'bm-watch fails when it finds no profiles' "$?" '1'
+
+    reset
+    PATH="$top:$PATH" HOME=$work/linux XDG_CONFIG_HOME='' LOCALAPPDATA='' \
+        $WATCH -i 1 brave >/dev/null 2>&1 &
+    watcher=$!
+    trap 'kill "$watcher" 2>/dev/null; rm -rf "$work"' EXIT INT TERM
+    i=0
+    while [ $i -lt 30 ] && ! grep -q deep.example "$BOOKMARKS"; do
+        sleep 1
+        i=$((i + 1))
+    done
+    sed 's|https://deep.example/|https://new.example/|' "$here/fixtures/chromium.json" \
+        > "$work/linux/.config/BraveSoftware/Brave-Browser/Profile 1/Bookmarks"
+    i=0
+    while [ $i -lt 30 ] && ! grep -q new.example "$BOOKMARKS"; do
+        sleep 1
+        i=$((i + 1))
+    done
+    kill "$watcher" 2>/dev/null
+    trap 'rm -rf "$work"' EXIT INT TERM
+    eq 'bm-watch imports again when a bookmark file changes' \
+        "$(grep -c new.example "$BOOKMARKS")" '1'
 else
     printf 'skip bm-import json: no jq\n'
 fi

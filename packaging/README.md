@@ -24,7 +24,7 @@ mentions a sync client.
 
 `make install` copies the programs in `TOOLS` to `${DESTDIR}${PREFIX}/bin`:
 
-    bm  bm-migrate  bm-import  bm-check  bm-html  bm-title  bm-commit
+    bm  bm-migrate  bm-import  bm-check  bm-html  bm-title  bm-commit  bm-watch
 
 Nothing is compiled. There are no man pages. Every package calls
 `make DESTDIR=... PREFIX=... install` rather than copying the scripts itself,
