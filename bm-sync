@@ -1,0 +1,195 @@
+#!/bin/sh
+
+# bm-sync: keep the bookmark file the same on all your devices, through an
+# sbm-sync server (https://github.com/equwal/sbm-sync). bm runs it after each
+# change when it is installed; you can also run it yourself, or from cron.
+#
+# The server merges: bookmarks that you add or remove here are added or
+# removed there, and the other way round. The file stays a plain file.
+
+DATADIR=${XDG_DATA_HOME:-$HOME/.local/share}/sbm
+BOOKMARKS=${BOOKMARKS:-$DATADIR/bookmarks}
+CONFIG=${SBM_SYNC_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/sbm/sync}
+SERVER=https://sbm.subread.space
+STATE=$BOOKMARKS.sync   # name of the version of the last sync
+LOCK=$BOOKMARKS.sync.lock
+quiet=
+
+usage () {
+    cat <<'EOF'
+usage: bm-sync [-q] [login [server] | logout | status]
+Without a command: sync the bookmark file now.
+  login     sign in to the server (default https://sbm.subread.space)
+            and sync; asks for your email and password
+  logout    sign out on this computer
+  status    show the server and the time of the last sync
+  -q        print nothing but errors
+EOF
+}
+
+die () {
+    printf 'bm-sync: %s\n' "$*" >&2
+    exit 1
+}
+
+say () {
+    [ -n "$quiet" ] || printf 'bm-sync: %s\n' "$*"
+}
+
+# setting <name>: a value from the config file.
+setting () {
+    sed -n "s/^$1=//p" "$CONFIG" 2>/dev/null | head -n 1
+}
+
+# private <file>: create an empty file that only you can read.
+private () {
+    (umask 077; : > "$1")
+}
+
+cleanup () {
+    rm -rf "$work"
+    [ -z "$locked" ] || rm -rf "$LOCK"
+}
+
+login () {
+    server=${1:-$SERVER}
+    server=${server%/}
+    printf 'email: ' >&2
+    read -r email || exit 1
+    printf 'password: ' >&2
+    stty -echo 2>/dev/null
+    IFS= read -r password
+    rc=$?
+    stty echo 2>/dev/null
+    printf '\n' >&2
+    [ $rc -eq 0 ] || exit 1
+
+    # The password goes through stdin: on the command line, other users
+    # could see it with ps.
+    code=$(printf '%s' "$password" | curl -sS -o "$work/out" -w '%{http_code}' \
+        --data-urlencode "email=$email" --data-urlencode 'password@-' \
+        -- "$server/api/login") || die "cannot reach $server"
+    [ "$code" = 200 ] || die "$(cat "$work/out")"
+    token=$(tr -d '\r\n' < "$work/out")
+
+    mkdir -p "$(dirname "$CONFIG")" || exit 1
+    private "$CONFIG" || exit 1
+    printf 'server=%s\ntoken=%s\n' "$server" "$token" > "$CONFIG"
+    rm -f "$STATE"
+    say "signed in to $server"
+    sync
+}
+
+logout () {
+    if [ -e "$CONFIG" ]; then
+        private "$work/auth"
+        printf 'Authorization: Bearer %s\n' "$(setting token)" > "$work/auth"
+        curl -sS -o /dev/null -X POST -H "@$work/auth" -- "$(setting server)/api/logout" \
+            2>/dev/null
+        rm -f "$CONFIG" "$STATE"
+    fi
+    say 'signed out'
+}
+
+status () {
+    if [ ! -e "$CONFIG" ]; then
+        echo 'not signed in: run bm-sync login'
+        return
+    fi
+    echo "server: $(setting server)"
+    if [ -e "$STATE" ]; then
+        echo "last sync: $(ls -l "$STATE" | awk '{ print $6, $7, $8 }')"
+    else
+        echo 'last sync: never'
+    fi
+}
+
+# sync: send the file with the name of its last version; the server gives
+# back the merged file and the name of the new version.
+sync () {
+    [ -e "$CONFIG" ] || die 'not signed in: run bm-sync login'
+    server=$(setting server)
+    token=$(setting token)
+    [ -n "$server" ] && [ -n "$token" ] || die "$CONFIG is damaged: run bm-sync login"
+
+    # One sync at a time. A second bm-sync leaves a note and exits: the
+    # first one then syncs again, so that no change waits for the next one.
+    if ! mkdir "$LOCK" 2>/dev/null; then
+        pid=$(cat "$LOCK/pid" 2>/dev/null)
+        if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+            : > "$LOCK/again"
+            exit 0
+        fi
+        rm -rf "$LOCK"   # left by a bm-sync that was killed
+        mkdir "$LOCK" 2>/dev/null || die "cannot lock $LOCK"
+    fi
+    locked=1
+    echo $$ > "$LOCK/pid"
+
+    private "$work/auth"
+    printf 'Authorization: Bearer %s\n' "$token" > "$work/auth"
+    if [ ! -e "$BOOKMARKS" ]; then
+        mkdir -p "$(dirname "$BOOKMARKS")" && : > "$BOOKMARKS" || exit 1
+    fi
+
+    tries=0
+    while :; do
+        rm -f "$LOCK/again"
+        cat "$BOOKMARKS" > "$work/sent"
+        base=$(cat "$STATE" 2>/dev/null)
+        code=$(curl -sS --max-time 60 -o "$work/out" -D "$work/head" -w '%{http_code}' \
+            -H "@$work/auth" -H 'Content-Type: text/plain; charset=utf-8' \
+            --data-binary "@$work/sent" -- "$server/api/sync?base=$base") \
+            || die "cannot reach $server"
+        case $code in
+            200) ;;
+            401) die 'not signed in: run bm-sync login' ;;
+            *)   die "$(cat "$work/out")" ;;
+        esac
+        version=$(tr -d '\r' < "$work/head" | sed -n 's/^[Ss][Bb][Mm]-[Vv][Ee][Rr][Ss][Ii][Oo][Nn]: *//p')
+        [ -n "$version" ] || die 'the server gave no version'
+
+        # bm changed the file while it was away: send the new file. The
+        # answer to the old one is of no use.
+        if ! cmp -s "$work/sent" "$BOOKMARKS"; then
+            tries=$((tries + 1))
+            [ $tries -lt 5 ] || die 'the file changes all the time: try again later'
+            continue
+        fi
+        if ! cmp -s "$work/out" "$BOOKMARKS"; then
+            # Through cat, not mv, as in bm: a symlinked file stays a symlink.
+            cat "$work/out" > "$BOOKMARKS" || die "cannot write $BOOKMARKS"
+            if command -v bm-commit >/dev/null 2>&1; then bm-commit 'bm-sync: merge'; fi
+        fi
+        printf '%s\n' "$version" > "$STATE"
+        [ -e "$LOCK/again" ] || break
+    done
+    say "in sync: $(grep -c -v -e '^#' -e '^[[:space:]]*$' "$BOOKMARKS") bookmarks"
+}
+
+while [ $# -gt 0 ]; do
+    case $1 in
+        -q) quiet=1 ;;
+        -h|--help) usage; exit 0 ;;
+        -*) usage >&2; exit 2 ;;
+        *)  break ;;
+    esac
+    shift
+done
+
+command -v curl >/dev/null 2>&1 || die 'curl is not installed'
+# mkdir fails when the name exists: a directory planted in a shared /tmp is
+# refused, not used.
+work=${TMPDIR:-/tmp}/bm-sync.$$
+mkdir -m 700 "$work" || die "cannot create $work"
+locked=
+trap cleanup EXIT
+trap 'exit 1' INT TERM
+
+case ${1:-sync} in
+    login)  shift; login "$@" ;;
+    logout) logout ;;
+    status) status ;;
+    sync)   sync ;;
+    *)      usage >&2; exit 2 ;;
+esac

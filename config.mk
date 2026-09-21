@@ -12,4 +12,5 @@ MANPREFIX=${PREFIX}/share/man
 #   bm-title    lets bm --add suggest the page title as description (curl)
 #   bm-commit   lets bm keep the file's history in git
 #   bm-watch    brings new browser bookmarks into bm (bm-import, jq)
-TOOLS = bm bm-migrate bm-import bm-check bm-html bm-title bm-commit bm-watch
+#   bm-sync     keeps the file the same on all your devices (curl)
+TOOLS = bm bm-migrate bm-import bm-check bm-html bm-title bm-commit bm-watch bm-sync

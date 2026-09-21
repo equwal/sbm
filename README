@@ -24,6 +24,7 @@ other Unix tools, and you install only the ones you use:
     bm-title    a URL                    -> the page's title
     bm-commit   commit the bookmark file to git
     bm-watch    browser bookmarks        -> bm, now and after each change
+    bm-sync     the bookmark file        <-> your other devices
 
     bm-import bookmarks.html | bm --merge
     bm --tag code --list | bm-check -
@@ -37,8 +38,8 @@ date +%s.
 
 == Requirements ==
 dmenu (or fzf), one of xclip, xsel or wl-clipboard, sh, awk, make.
-curl for bm-title and bm-check, jq for bm-import of Chromium files, git for
-bm-commit.
+curl for bm-title, bm-check and bm-sync, jq for bm-import of Chromium files,
+git for bm-commit.
 
 == Install ==
 Edit TOOLS in config.mk to choose what gets installed, then
@@ -188,6 +189,26 @@ pushes or pulls.
 
 A file that merely sits inside a bigger repository (your dotfiles) is left
 alone unless SBM_GIT=1. SBM_GIT=0 turns commits off.
+
+== Sync ==
+bm-sync keeps the bookmark file the same on all your computers, the sbm app
+for Android and the sbm add-on for Firefox and Chrome.
+
+    bm-sync login        # once on each computer: email and password
+    bm-sync              # sync now
+
+When bm-sync is installed and signed in, bm syncs after each change, in the
+background. Bookmarks that you add or remove on one device are added or
+removed on the others. The file stays a plain file, and bm works without a
+network. The sign-in token is kept in ~/.config/sbm/sync.
+
+The server is sbm-sync (https://github.com/equwal/sbm-sync). bm-sync uses
+https://sbm.subread.space unless you give another server: create an account
+there. The server is free software, so you can run your own:
+
+    bm-sync login https://sbm.example.org
+
+The sbm app for Android is at https://github.com/equwal/sbm-android.
 
 == Migrating from the old format ==
 Earlier versions wrote "URL description | tag tag".

@@ -940,6 +940,100 @@ if command -v node >/dev/null 2>&1; then
     eq 'bm-html: the script parses' "$?" '0'
 fi
 
+# ---- bm-sync ----
+
+# A stand-in for curl that plays an sbm-sync server. The file of the server
+# is $srv/file. Lines in $srv/other come from another device, once. With
+# $srv/code, the server refuses with that status. With $srv/touch, bm adds a
+# bookmark while the request runs.
+srv="$work/srv"
+mkdir "$srv" "$work/syncnet"
+cat > "$work/syncnet/curl" <<'FAKE'
+#!/bin/sh
+printf '%s\n' "$*" >> "$SBM_TEST_SRV/argv"
+out= head= data= auth= url= password=
+while [ $# -gt 0 ]; do
+    case $1 in
+        -o) out=$2; shift ;;
+        -D) head=$2; shift ;;
+        -w|--max-time|-X) shift ;;
+        -H) case $2 in @*) auth=$(cat "${2#@}") ;; esac; shift ;;
+        --data-binary) data=${2#@}; shift ;;
+        --data-urlencode) case $2 in password@-) password=$(cat) ;; esac; shift ;;
+        -*) ;;
+        *) url=$1 ;;
+    esac
+    shift
+done
+answer () { printf '%s\n' "$2" > "$out"; printf '%s' "$1"; exit 0; }
+case $url in
+    */api/login)
+        [ "$password" = 'secret pass ' ] || answer 401 'wrong email or password'
+        answer 200 tok123 ;;
+    */api/logout)
+        echo logout >> "$SBM_TEST_SRV/log"
+        exit 0 ;;
+esac
+[ "$auth" = 'Authorization: Bearer tok123' ] || answer 401 'not signed in'
+[ ! -e "$SBM_TEST_SRV/code" ] || answer "$(cat "$SBM_TEST_SRV/code")" 'sync is paused'
+printf '%s\n' "${url#*base=}" >> "$SBM_TEST_SRV/bases"
+cat "$data" "$SBM_TEST_SRV/other" > "$SBM_TEST_SRV/file" 2>/dev/null
+rm -f "$SBM_TEST_SRV/other"
+version=v$(cksum < "$SBM_TEST_SRV/file" | cut -d' ' -f1)
+echo "$version" >> "$SBM_TEST_SRV/versions"
+cp "$SBM_TEST_SRV/file" "$out"
+printf 'HTTP/1.1 200 OK\r\nsbm-version: %s\r\n\r\n' "$version" > "$head"
+if [ -e "$SBM_TEST_SRV/touch" ]; then
+    rm -f "$SBM_TEST_SRV/touch"
+    printf 'https://c.example\tC\t\n' >> "$BOOKMARKS"
+fi
+printf 200
+FAKE
+chmod +x "$work/syncnet/curl"
+export SBM_TEST_SRV="$srv" SBM_SYNC_CONFIG="$work/sync.conf"
+bmsync () {
+    PATH="$work/syncnet:$PATH" ${SBM_SH:-sh} "$top/bm-sync" "$@"
+}
+
+reset
+printf 'https://a.example\tA\t\n' > "$BOOKMARKS"
+bmsync 2>"$work/err"
+eq 'bm-sync without an account says how to sign in' "$?:$(grep -c 'bm-sync login' "$work/err")" '1:1'
+
+printf 'me@example.org\nsecret pass \n' | bmsync login https://sync.example/ >/dev/null 2>&1
+eq 'bm-sync login keeps the token in a file that only you can read' \
+    "$(ls -l "$SBM_SYNC_CONFIG" | cut -c1-10) $(paste -sd ' ' - < "$SBM_SYNC_CONFIG")" \
+    '-rw------- server=https://sync.example token=tok123'
+eq 'the password and the token never go on the command line' \
+    "$(grep -c -e secret -e tok123 "$srv/argv")" '0'
+eq 'bm-sync login syncs at once, from no version' \
+    "$(cat "$srv/file"):$(sed -n 1p "$srv/bases")" "https://a.example${TAB}A${TAB}:"
+
+printf 'https://b.example\tB\t\n' > "$srv/other"
+bmsync -q
+eq 'bm-sync brings the bookmarks of other devices' \
+    "$(cut -f1 "$BOOKMARKS" | paste -sd ' ' -)" 'https://a.example https://b.example'
+eq 'bm-sync sends the version of the last sync' "$(sed -n 2p "$srv/bases")" "$(sed -n 1p "$srv/versions")"
+
+: > "$srv/touch"
+bmsync -q
+eq 'a bookmark added during a sync gets to the server too' \
+    "$(grep -c c.example "$srv/file") $(grep -c c.example "$BOOKMARKS")" '1 1'
+
+echo 402 > "$srv/code"
+cp "$BOOKMARKS" "$work/before"
+bmsync -q 2>"$work/err"
+eq 'bm-sync shows why the server refused, and keeps the file' \
+    "$?:$(cat "$work/err"):$(cmp -s "$work/before" "$BOOKMARKS" && echo same)" \
+    '1:bm-sync: sync is paused:same'
+rm -f "$srv/code"
+
+bmsync -q logout
+eq 'bm-sync logout forgets the token and signs out on the server' \
+    "$([ -e "$SBM_SYNC_CONFIG" ] || echo gone) $(cat "$srv/log")" 'gone logout'
+eq 'bm-sync leaves no lock behind' "$(ls -d "$BOOKMARKS.sync.lock" 2>/dev/null)" ''
+unset SBM_TEST_SRV SBM_SYNC_CONFIG
+
 # ---- make install ----
 
 if command -v make >/dev/null 2>&1; then
