@@ -326,9 +326,11 @@ learn_tags () {
 }
 
 # changed <message>: the file was written. bm-commit, where installed, keeps
-# its history in git.
+# its history in git. bm-sync, where installed, tells your other machines; it
+# runs in the background, so that a slow network never holds the menu up.
 changed () {
     if have bm-commit; then bm-commit "$1"; fi
+    if have bm-sync; then bm-sync -q >/dev/null 2>&1 & fi
 }
 
 # ---- actions ----
