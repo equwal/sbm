@@ -1,0 +1,109 @@
+#!/bin/sh
+
+# bm-import: turn a browser's bookmarks into bm's format, on stdout.
+#
+#     bm-import bookmarks.html | bm --merge
+#
+# Reads the Netscape HTML that every browser exports, or the JSON file that
+# Chromium style browsers keep (this needs jq). Folder names become tags:
+# "Dev Tools" is dev-tools. Only http, https, ftp and file URLs are kept.
+
+usage () {
+    cat <<'EOF2'
+usage: bm-import <file> | vivaldi | chrome | brave | edge | chromium
+EOF2
+}
+
+die () {
+    printf 'bm-import: %s\n' "$*" >&2
+    exit 1
+}
+
+if [ $# -ne 1 ]; then
+    usage >&2
+    exit 2
+fi
+case $1 in
+    -h|--help) usage; exit 0 ;;
+esac
+
+src=$1
+case $src in
+    vivaldi)  src=vivaldi ;;
+    chrome)   src=google-chrome ;;
+    brave)    src=BraveSoftware/Brave-Browser ;;
+    edge)     src=microsoft-edge ;;
+    chromium) src=chromium ;;
+    *)        src= ;;
+esac
+if [ -n "$src" ]; then
+    src=${XDG_CONFIG_HOME:-$HOME/.config}/$src/Default/Bookmarks
+else
+    src=$1
+fi
+[ -r "$src" ] || die "cannot read $src"
+
+# Chromium JSON. The trash (Vivaldi has one) is left out.
+from_json () {
+    command -v jq >/dev/null 2>&1 || die 'a Chromium bookmark file needs jq'
+    jq -r '
+        def slug: ascii_downcase | gsub("[^a-z0-9]+"; "-")
+                  | sub("^-"; "") | sub("-$"; "");
+        def emit(path):
+            if .type == "url" then
+                [.url, (.name | gsub("[\t\r\n]+"; " ")),
+                 (path | unique | join(" "))] | join("\t")
+            elif (.children? | type) == "array" then
+                (path + ([.name | slug] | map(select(. != "")))) as $sub
+                | .children[] | emit($sub)
+            else empty end;
+        .roots | to_entries[]
+        | select(.key != "trash" and (.value | type) == "object")
+        | .value.children[]? | emit([])' "$1"
+}
+
+# Netscape HTML. <H3> opens a folder, </DL> closes it.
+from_html () {
+    awk '
+    function decode(s) {
+        gsub(/&lt;/, "<", s); gsub(/&gt;/, ">", s); gsub(/&quot;/, "\"", s)
+        gsub(/&#39;|&#x27;|&apos;/, "\047", s); gsub(/&nbsp;/, " ", s)
+        gsub(/&amp;/, "\\&", s)
+        gsub(/[ \t\r]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s)
+        return s
+    }
+    function slug(s) {
+        s = tolower(s)
+        gsub(/[^a-z0-9]+/, "-", s); sub(/^-/, "", s); sub(/-$/, "", s)
+        return s
+    }
+    {
+        upper = toupper($0)
+        if ((at = index(upper, "<H3")) > 0) {
+            name = substr($0, at)
+            name = substr(name, index(name, ">") + 1)
+            end = index(toupper(name), "</H3")
+            if (end) name = substr(name, 1, end - 1)
+            folder[++depth] = slug(decode(name))
+        }
+        if ((at = index(upper, "HREF=\"")) > 0) {
+            url = substr($0, at + 6)
+            rest = substr(url, index(url, "\"") + 1)
+            url = decode(substr(url, 1, index(url, "\"") - 1))
+            name = substr(rest, index(rest, ">") + 1)
+            end = index(toupper(name), "</A")
+            if (end) name = substr(name, 1, end - 1)
+            tags = ""
+            for (i = 1; i <= depth; i++)
+                if (folder[i] != "" && index(" " tags " ", " " folder[i] " ") == 0)
+                    tags = tags (tags == "" ? "" : " ") folder[i]
+            printf "%s\t%s\t%s\n", url, decode(name), tags
+        }
+        if (index(upper, "</DL>") > 0 && depth > 0) depth--
+    }' "$1"
+}
+
+case $(LC_ALL=C tr -d ' \t\r\n' < "$src" | dd bs=1 count=1 2>/dev/null) in
+    '{') from_json "$src" ;;
+    *)   from_html "$src" ;;
+esac | awk -F'\t' '$1 ~ /^(https?|ftp|file):\/\//'

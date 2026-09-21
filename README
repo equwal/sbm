@@ -1,4 +1,4 @@
-Manage bookmarks with a menu program and a basic file.
+Manage bookmarks with dmenu and a basic file.
 
 The file is Tab Separated Values, one bookmark per line:
 
@@ -8,25 +8,48 @@ For example:
 
     https://equwal.com	Spenser Truex's website.	users
 
-Lines starting with # are ignored. Interact with the file using the bm
-script, or any other tool: cut, grep, awk and your editor all work.
+Lines starting with # are ignored. bm is one way to work with the file;
+cut, grep, awk and your editor are others.
+
+== Design ==
+bm owns the bookmark file and talks to the menu. Everything else is a small
+filter that reads or writes bookmark lines, so the pieces combine like any
+other Unix tools, and you install only the ones you use:
+
+    bm          pick, open, copy, add, edit, delete, list, merge
+    bm-import   browser bookmarks        -> bookmark lines
+    bm-check    bookmark lines           -> the dead links among them
+    bm-html     bookmark lines           -> a searchable web page
+    bm-migrate  the old sbm file format  -> bookmark lines
+    bm-title    a URL                    -> the page's title
+    bm-commit   commit the bookmark file to git
+
+    bm-import bookmarks.html | bm --merge
+    bm --tag code --list | bm-check -
+    bm --list | grep -i wiki | bm-html -t Wikis - > wikis.html
+
+Everything is POSIX sh and POSIX utilities: no bash, no mktemp, no GNU
+options. make check runs shellcheck -s sh over all of it. Where the usual
+tool is not in POSIX, the script says what stands in for it: noclobber for
+mktemp, a FIFO of tokens for xargs -P, dd for head -c, awk's srand() for
+date +%s.
 
 == Requirements ==
-dmenu (or fzf), one of xclip, xsel or wl-clipboard, a POSIX sh, awk, make.
-Optional: curl (page titles, --check), jq (--import of Chromium files), git.
+dmenu (or fzf), one of xclip, xsel or wl-clipboard, sh, awk, make.
+curl for bm-title and bm-check, jq for bm-import of Chromium files, git for
+bm-commit.
 
 == Install ==
-    make install
+Edit TOOLS in config.mk to choose what gets installed, then
 
-installs bm to /usr/local/bin. To install somewhere you own instead:
-
+    make install                        # to /usr/local/bin
     make PREFIX="$HOME/.local" install
 
 == Setup ==
 Nothing is required. Bookmarks are kept in ~/.local/share/sbm/bookmarks
 ($XDG_DATA_HOME is honoured) and the file is created on first use.
 
-Tag choices are read from ~/.local/share/sbm/usertags. The file syntax is:
+Tag choices are read from ~/.local/share/sbm/usertags:
 
     <tag><space>|<space><description><newline>
 
@@ -34,59 +57,75 @@ Start from the included example, or from nothing: a tag typed into the tag
 menu that is not in the file yet is added to it.
 
     mkdir -p ~/.local/share/sbm
-    cp usertags ~/.local/share/sbm/
-
-To keep the files somewhere else, export their locations from your shell's
-startup file. Use $HOME here: a ~ inside quotes is not expanded.
-
-    export BOOKMARKS="$HOME/notes/bookmarks"
-    export USERTAGS="$HOME/notes/usertags"
+    cp usertags engines ~/.local/share/sbm/
 
 == Usage ==
-    bm                   dmenu: prompt for an action. fzf: browse (see below)
-    bm -c, --copy        copy a bookmark's URL to the clipboard
-    bm -o, --open        open a bookmark in the default browser
+    bm                   browse (see below)
+    bm -o, --open        open a bookmark, an address, or a web search
                          (-p, --plumb is the same)
+    bm -c, --copy        copy a bookmark's URL to the clipboard
+    bm --print           print a bookmark's URL
     bm -a, --add [url]   add a bookmark
-    bm -e, --edit        open the bookmark file in $VISUAL/$EDITOR at a bookmark
+    bm -e, --edit        open the file in $VISUAL/$EDITOR at a bookmark
     bm -d, --delete      delete a bookmark
     bm -l, --list        print the bookmarks
-    bm -s, --search ERE  print the bookmarks matching an extended regex
-    bm --import SRC      import bookmarks from a browser (see below)
-    bm --check           report dead and permanently moved links
-    bm --migrate         convert a file from the old format (see below)
-    bm -h, --help
-
+    bm -m, --merge       add the bookmark lines on stdin, skipping known ones
     -t, --tag TAG        restrict any of the above to one tag
-    -S, --sort MODE      used (default), recent, url, desc or tag
-    --print              with --copy or --open, print the URL instead
+    -S, --sort ORDER     used (default), recent, url, desc or tag
 
-== The menu ==
-With a display bm uses dmenu, as it always has; fzf is only used when dmenu
-is missing or there is no X11 or Wayland display. SBM_MENU=dmenu or
-SBM_MENU=fzf settles it either way.
+Bind "bm" and "bm -a" to keys in your window manager.
 
-With dmenu, tags are chosen one at a time until "done" is picked or the menu
-is closed. With fzf they are chosen all at once: TAB marks a tag, ENTER
-confirms. In both, typing a tag that does not exist creates it.
+== Browsing ==
+Plain "bm" lists the bookmarks. Pick one and a second menu shows it in full
+(dmenu cannot preview while you scroll, so this is its preview) and asks what
+to do:
 
-With fzf, plain "bm" is one screen for everything:
+    open
+    copy
+    edit
+    delete
+      https://suckless.org/
+      software that sucks less
+      tags: code org
+      used: 12
+
+Closing the second menu goes back to the list, closing the list leaves.
+[add] at the top of the list adds a bookmark.
+
+With fzf (no display, or SBM_MENU=fzf) it is one screen: the bookmark under
+the cursor is previewed live, and keys do the rest.
 
     ENTER   open            ctrl-a  add            ctrl-t  filter by tag
     ctrl-y  copy            ctrl-d  delete (asks)  ctrl-s  next sort order
     ESC     leave           ctrl-e  edit
 
+== Web search ==
+In the list, and in "bm -o", text that is not a bookmark is not wasted:
+
+    suckless.org/dwm          one word with a dot or "://": opened as an address
+    posix sh printf           anything else: searched for on the web
+    w dynamic menu            first word is a keyword: that engine is used
+
+So one key gives you bookmarks first and the web behind them. The default
+engine is DuckDuckGo; set another with SBM_SEARCH='https://.../?q=%s'.
+Keywords are read from ~/.local/share/sbm/engines:
+
+    <keyword><space>|<space><url with %s><newline>
+
+See the included engines file.
+
 == Adding ==
-Without a url, bm offers one: the X11 primary selection, or the clipboard,
-when it holds a URL.
+Without a url, bm offers the X11 primary selection, or the clipboard, when
+it holds a URL. With bm-title installed the description defaults to the
+page's title (curl, 3 second limit; SBM_FETCH=0 turns it off). In dmenu the
+default is the one entry in the menu: Return accepts it, Shift-Return sends
+exactly what you typed.
 
-The description defaults to the page's <title>, fetched with curl (3 second limit; SBM_FETCH=0 turns this off). With fzf,
-ENTER accepts the default. With dmenu the default is the one entry in the
-menu: Return accepts it, and Shift-Return sends exactly what you typed.
+Tags are chosen one at a time until "done" is picked or the menu is closed
+(fzf: TAB marks, ENTER confirms). Typing a tag that does not exist creates it.
 
-Adding refuses a URL that is already bookmarked. URLs are compared without
-their scheme, a leading www. and trailing slashes, so http://www.example.com/
-and https://example.com are the same bookmark.
+A URL that is already bookmarked is refused (exit status 3). URLs are
+compared without their scheme, a leading www. and trailing slashes.
 
 == Sorting ==
     used     most opened or copied first, then by url (the default)
@@ -96,24 +135,53 @@ and https://example.com are the same bookmark.
 Set a default with SBM_SORT. Use counts live in "$BOOKMARKS.usage", so the
 bookmark file itself stays a plain list.
 
-== Importing ==
-    bm --import bookmarks.html      # the HTML export of any browser
-    bm --import vivaldi             # or chrome, brave, edge, chromium
-    bm --import path/to/Bookmarks   # a Chromium JSON file (needs jq)
+== A web page of your bookmarks ==
+    bm-html > ~/public_html/bookmarks.html
 
-Folder names become tags ("Dev Tools" becomes dev-tools), bookmarks you
-already have are skipped, and anything that is not a web, ftp or file URL is
-dropped. Importing twice adds nothing.
+One self-contained file: no server side, nothing loaded from elsewhere.
+Bookmarks are listed under each of their tags, with the tags linked at the
+top. A dozen lines of inline script add a filter box; without script the page
+is still the complete list, and Ctrl-F works. page.html?q=words starts out
+filtered, so the page can be a search keyword in your browser, or in bm:
+
+    b | https://example.org/bookmarks.html?q=%s
+
+Links that would run script (javascript:, data:) are never written.
+
+== Importing ==
+    bm-import bookmarks.html | bm --merge     # the HTML export of any browser
+    bm-import vivaldi | bm --merge            # or chrome, brave, edge, chromium
+    bm-import path/to/Bookmarks | bm --merge  # a Chromium JSON file (needs jq)
+
+Folder names become tags ("Dev Tools" becomes dev-tools). bm --merge skips
+what you already have, so importing twice adds nothing. Look before you
+merge: bm-import prints plain bookmark lines.
+
+== Dead links ==
+    bm-check
+
+prints status<tab>url for links that fail, and status<tab>url<tab>new-url for
+ones that moved for good. It exits 1 if it printed anything.
 
 == History and sync with git ==
-If the directory holding the bookmark file is itself a git repository, every
-add, delete, edit, import and migrate is committed. bm never pushes or pulls.
+With bm-commit installed, every change bm makes is committed, provided the
+directory holding the bookmark file is a git repository of its own. It never
+pushes or pulls.
 
     cd ~/.local/share/sbm && git init
-    printf '%s\n' '*.usage' '*.bak' > .gitignore
+    printf '%s\n' '*.usage' '*.bak*' > .gitignore
 
-A bookmark file that merely sits somewhere inside a bigger repository (your
-dotfiles, say) is left alone unless SBM_GIT=1. SBM_GIT=0 turns commits off.
+A file that merely sits inside a bigger repository (your dotfiles) is left
+alone unless SBM_GIT=1. SBM_GIT=0 turns commits off.
+
+== Migrating from the old format ==
+Earlier versions wrote "URL description | tag tag".
+
+    bm-migrate                  # $BOOKMARKS, or the default file
+    bm-migrate -n file          # only show what it would become
+    bm-migrate - < old > new    # as a filter
+
+The original is kept as .bak, and an existing .bak is never overwritten.
 
 == Configuration ==
 All through the environment, all optional.
@@ -124,36 +192,28 @@ All through the environment, all optional.
     SBM_MENU      dmenu, fzf, or a custom command
     SBM_FZF_OPTS  extra options for every fzf call
     SBM_SORT      default sort order
+    SBM_SEARCH    default search engine, with %s for the query
+    SBM_ENGINES   search keywords file
     SBM_COPY      command that reads the new clipboard contents from stdin
     SBM_PASTE     command that writes the clipboard contents to stdout
     SBM_OPEN      command that opens the URL given as its argument
-    SBM_FETCH     0 to never download a page for its title
-    SBM_GIT       0 never commit, 1 commit even inside a bigger repository
 
-The clipboard is the first of wl-copy, xclip and xsel that exists, and URLs
-are opened with xdg-open.
+With a display bm uses dmenu; fzf is only used when dmenu is missing or
+there is no X11 or Wayland display. A custom SBM_MENU is called with the
+choices on stdin as one of:
 
-A custom SBM_MENU is called with the choices on stdin as one of:
-
-    <command> pick  <prompt>     print the chosen line
+    <command> pick  <prompt>     print the chosen line, or the typed text
     <command> multi <prompt>     print every chosen line
     <command> ask   <prompt>     print free text; stdin holds a default, if any
 
 Printing nothing means the user cancelled. test/fakemenu is a small example.
 
-== Migrating from the old format ==
-Earlier versions wrote "URL description | tag tag". Convert such a file with
-
-    bm --migrate
-
-The original is kept next to it with a .bak suffix, and lines that are
-already tab separated are left alone.
-
 == Tests ==
     make check
 
-runs shellcheck, when installed, and test/run.sh. The tests script dmenu,
-fzf and curl, so they need no display and no network.
+runs shellcheck, when installed, and test/run.sh, under sh. Run the tests
+under another shell with SBM_SH=dash sh test/run.sh. They script dmenu, fzf
+and curl, so they need no display and no network.
 
 == Credits ==
 Some ideas taken from Karl Voit:

@@ -18,6 +18,8 @@ case $name in
 esac
 
 choices=$(cat)
+# With $SBM_TEST_SEEN set, what each menu offered is appended to that file.
+[ -z "$SBM_TEST_SEEN" ] || printf -- '--- %s\n%s\n' "$*" "$choices" >> "$SBM_TEST_SEEN"
 answer=$(sed -n 1p "$SBM_TEST_ANSWERS")
 sed 1d "$SBM_TEST_ANSWERS" > "$SBM_TEST_ANSWERS.next"
 mv "$SBM_TEST_ANSWERS.next" "$SBM_TEST_ANSWERS"

@@ -1,0 +1,36 @@
+#!/bin/sh
+
+# bm-commit [message]: commit the bookmark file, and the tag file beside it,
+# when their directory is a git repository of its own. bm runs it after every
+# change when it is installed. It never pushes or pulls.
+#
+#     cd ~/.local/share/sbm && git init
+#     printf '%s\n' '*.usage' '*.bak*' > .gitignore
+#
+# A file that merely sits somewhere inside a bigger repository (your dotfiles,
+# say) is left alone, unless SBM_GIT=1. SBM_GIT=0 turns commits off.
+
+DATADIR=${XDG_DATA_HOME:-$HOME/.local/share}/sbm
+BOOKMARKS=${BOOKMARKS:-$DATADIR/bookmarks}
+USERTAGS=${USERTAGS:-$DATADIR/usertags}
+
+[ "${SBM_GIT:-auto}" != 0 ] || exit 0
+dir=$(cd "$(dirname "$BOOKMARKS")" 2>/dev/null && pwd -P) || exit 0
+top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ "${SBM_GIT:-auto}" = 1 ] || [ "$top" = "$dir" ] || exit 0
+
+set -- "${1:-bm: update}" "$BOOKMARKS"
+if [ -e "$USERTAGS" ] \
+    && [ "$(cd "$(dirname "$USERTAGS")" 2>/dev/null && pwd -P)" = "$dir" ]
+then
+    set -- "$@" "$USERTAGS"
+fi
+message=$1
+shift
+
+git -C "$dir" add -- "$@" 2>/dev/null || exit 0
+git -C "$dir" diff --cached --quiet -- "$@" && exit 0
+if ! git -C "$dir" commit -q -m "$message" -- "$@" >/dev/null 2>&1; then
+    printf 'bm-commit: git commit failed in %s\n' "$dir" >&2
+    exit 1
+fi

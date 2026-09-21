@@ -1,0 +1,33 @@
+#!/bin/sh
+
+# bm-title: print the <title> of a web page, or nothing.
+# When it is installed, "bm --add" offers the title as the description.
+# SBM_FETCH=0 keeps it off the network.
+
+if [ $# -ne 1 ]; then
+    printf 'usage: bm-title <url>\n' >&2
+    exit 2
+fi
+[ "${SBM_FETCH:-1}" != 0 ] || exit 0
+
+# Lines are gathered until the title has been closed; awk then leaves, and
+# curl stops downloading. dd caps it at 64k for pages that are one long line
+# (it may pass a little less when its reads come up short; never more).
+curl -sL --max-time 3 -A 'Mozilla/5.0' -- "$1" 2>/dev/null \
+    | dd bs=1024 count=64 2>/dev/null | LC_ALL=C awk '
+    function title(s,    start, end) {
+        start = index(tolower(s), "<title")
+        if (!start) return
+        s = substr(s, start)
+        s = substr(s, index(s, ">") + 1)
+        end = index(tolower(s), "</title")
+        if (end) s = substr(s, 1, end - 1)
+        gsub(/&lt;/, "<", s); gsub(/&gt;/, ">", s); gsub(/&quot;/, "\"", s)
+        gsub(/&#39;|&#x27;|&apos;/, "\047", s); gsub(/&nbsp;/, " ", s)
+        gsub(/&amp;/, "\\&", s)
+        gsub(/[ \t\r]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s)
+        print s
+    }
+    { page = page " " $0 }
+    index(tolower($0), "</title") || NR >= 500 { exit }
+    END { title(page) }'
