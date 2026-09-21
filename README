@@ -202,6 +202,9 @@ background. Bookmarks that you add or remove on one device are added or
 removed on the others. The file stays a plain file, and bm works without a
 network. The sign-in token is kept in ~/.config/sbm/sync.
 
+An empty or missing bookmark file removes nothing on the other devices:
+bm-sync gets all the bookmarks back from the server.
+
 The server is sbm-sync (https://github.com/equwal/sbm-sync). bm-sync uses
 https://sbm.subread.space unless you give another server: create an account
 there. The server is free software, so you can run your own:

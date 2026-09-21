@@ -945,7 +945,9 @@ fi
 # A stand-in for curl that plays an sbm-sync server. The file of the server
 # is $srv/file. Lines in $srv/other come from another device, once. With
 # $srv/code, the server refuses with that status. With $srv/touch, bm adds a
-# bookmark while the request runs.
+# bookmark while the request runs. Without a version, the server deletes
+# nothing, as the real one: it keeps its file and adds the new lines. With
+# $srv/broken, the answer is a directory, so bm-sync cannot write it.
 srv="$work/srv"
 mkdir "$srv" "$work/syncnet"
 cat > "$work/syncnet/curl" <<'FAKE'
@@ -976,12 +978,18 @@ case $url in
 esac
 [ "$auth" = 'Authorization: Bearer tok123' ] || answer 401 'not signed in'
 [ ! -e "$SBM_TEST_SRV/code" ] || answer "$(cat "$SBM_TEST_SRV/code")" 'sync is paused'
-printf '%s\n' "${url#*base=}" >> "$SBM_TEST_SRV/bases"
+base=${url#*base=}
+printf '%s\n' "$base" >> "$SBM_TEST_SRV/bases"
+if [ -z "$base" ]; then
+    cat "$SBM_TEST_SRV/file" "$data" 2>/dev/null | awk '!seen[$0]++' > "$SBM_TEST_SRV/union"
+    data=$SBM_TEST_SRV/union
+fi
 cat "$data" "$SBM_TEST_SRV/other" > "$SBM_TEST_SRV/file" 2>/dev/null
 rm -f "$SBM_TEST_SRV/other"
 version=v$(cksum < "$SBM_TEST_SRV/file" | cut -d' ' -f1)
 echo "$version" >> "$SBM_TEST_SRV/versions"
 cp "$SBM_TEST_SRV/file" "$out"
+[ ! -e "$SBM_TEST_SRV/broken" ] || { rm -f "$out"; mkdir "$out"; }
 printf 'HTTP/1.1 200 OK\r\nsbm-version: %s\r\n\r\n' "$version" > "$head"
 if [ -e "$SBM_TEST_SRV/touch" ]; then
     rm -f "$SBM_TEST_SRV/touch"
@@ -1027,6 +1035,38 @@ eq 'bm-sync shows why the server refused, and keeps the file' \
     "$?:$(cat "$work/err"):$(cmp -s "$work/before" "$BOOKMARKS" && echo same)" \
     '1:bm-sync: sync is paused:same'
 rm -f "$srv/code"
+
+chmod 644 "$SBM_SYNC_CONFIG"
+printf 'me@example.org\nsecret pass \n' | bmsync login https://sync.example/ >/dev/null 2>&1
+eq 'bm-sync login makes a config file that exists already private too' \
+    "$(ls -l "$SBM_SYNC_CONFIG" | cut -c1-10)" '-rw-------'
+
+# kept: the version that bm-sync sent last, then "kept" if the server still
+# has all bookmarks, then "back" if the file has all of them again.
+cp "$srv/file" "$work/before"
+kept () {
+    printf '%s:%s:%s' "$(sed -n '$p' "$srv/bases")" \
+        "$(cmp -s "$work/before" "$srv/file" && echo kept)" \
+        "$(cmp -s "$work/before" "$BOOKMARKS" && echo back)"
+}
+: > "$BOOKMARKS"
+bmsync -q
+eq 'bm-sync sends an empty file without a version, so the server deletes nothing' \
+    "$(kept)" ':kept:back'
+rm -f "$BOOKMARKS"
+bmsync -q
+eq 'bm-sync sends a missing file without a version too' "$(kept)" ':kept:back'
+
+: > "$srv/broken"
+bmsync -q 2>"$work/err"
+eq 'when bm-sync cannot write the file, it says so and forgets the version' \
+    "$?:$(grep -c 'cannot write' "$work/err"):$([ -e "$BOOKMARKS.sync" ] || echo none)" '1:1:none'
+rm -f "$srv/broken"
+# The write stopped after the first line.
+sed -n 1p "$work/before" > "$BOOKMARKS"
+bmsync -q
+eq 'after a failed write, the next sync has no version, so the server deletes nothing' \
+    "$(kept)" ':kept:back'
 
 bmsync -q logout
 eq 'bm-sync logout forgets the token and signs out on the server' \

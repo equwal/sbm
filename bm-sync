@@ -41,9 +41,11 @@ setting () {
     sed -n "s/^$1=//p" "$CONFIG" 2>/dev/null | head -n 1
 }
 
-# private <file>: create an empty file that only you can read.
+# private <file>: make <file> an empty file that only you can read. umask
+# sets the mode of a new file. chmod sets the mode of a file that exists
+# already, for example the config file of an earlier login.
 private () {
-    (umask 077; : > "$1")
+    (umask 077; : > "$1") && chmod 600 "$1"
 }
 
 cleanup () {
@@ -136,6 +138,10 @@ sync () {
     while :; do
         rm -f "$LOCK/again"
         cat "$BOOKMARKS" > "$work/sent"
+        # An empty file with a version would delete all bookmarks on the
+        # server, and then on all devices. Without a version, the server
+        # deletes nothing, and sends all bookmarks back.
+        [ -s "$work/sent" ] || rm -f "$STATE"
         base=$(cat "$STATE" 2>/dev/null)
         code=$(curl -sS --max-time 60 -o "$work/out" -D "$work/head" -w '%{http_code}' \
             -H "@$work/auth" -H 'Content-Type: text/plain; charset=utf-8' \
@@ -156,7 +162,17 @@ sync () {
             [ $tries -lt 5 ] || die 'the file changes all the time: try again later'
             continue
         fi
+        # A known race: bm and bm-sync do not lock the file against each
+        # other. If bm adds a line after the cmp above and before the write
+        # below, the write removes that line. If bm reads the file for a
+        # delete or an edit before the write and writes it after the write,
+        # bm removes the merged lines. The next sync then deletes them on the
+        # server. A fix needs a lock that bm and bm-sync take for each write.
         if ! cmp -s "$work/out" "$BOOKMARKS"; then
+            # Forget the version first, and keep the new one only after the
+            # write. If the write stops part way (a full disk), the next sync
+            # sends no version, so the server deletes none of the lost lines.
+            rm -f "$STATE"
             # Through cat, not mv, as in bm: a symlinked file stays a symlink.
             cat "$work/out" > "$BOOKMARKS" || die "cannot write $BOOKMARKS"
             if command -v bm-commit >/dev/null 2>&1; then bm-commit 'bm-sync: merge'; fi
