@@ -1,0 +1,105 @@
+#!/bin/sh
+
+# bm-html: print the bookmarks as one self-contained web page.
+#
+#     bm-html > ~/public_html/bookmarks.html
+#     bm --tag code --list | bm-html -t 'Code' - > code.html
+#
+# Without a file the default bookmark file is read; "-" is stdin.
+#
+# The page lists the bookmarks under each of their tags, with links to the
+# tags at the top. A few lines of script add a filter box; without script the
+# page is still the complete list. page.html?q=words starts out filtered, so
+# the page can serve as a search engine keyword in a browser, or in bm's own
+# engines file:    b | https://example.org/bookmarks.html?q=%s
+
+usage () {
+    printf 'usage: bm-html [-t title] [file | -] ...\n'
+}
+
+title=Bookmarks
+while [ $# -gt 0 ]; do
+    case $1 in
+        -h|--help) usage; exit 0 ;;
+        -t)
+            [ $# -ge 2 ] || { usage >&2; exit 2; }
+            title=$2
+            shift
+            ;;
+        --) shift; break ;;
+        -) break ;;
+        -?*) usage >&2; exit 2 ;;
+        *) break ;;
+    esac
+    shift
+done
+[ $# -gt 0 ] || set -- "${BOOKMARKS:-${XDG_DATA_HOME:-$HOME/.local/share}/sbm/bookmarks}"
+
+cat -- "$@" | LC_ALL=C sort -f -t'	' -k2,2 -k1,1 | SBM_TITLE=$title awk -F'\t' '
+function esc(s) {
+    gsub(/&/, "\\&amp;", s); gsub(/</, "\\&lt;", s); gsub(/>/, "\\&gt;", s)
+    gsub(/"/, "\\&quot;", s)
+    return s
+}
+function host(u) {
+    sub(/^[A-Za-z][A-Za-z0-9+.-]*:\/\//, "", u)
+    sub(/[\/?#].*/, "", u)
+    return u
+}
+NF == 0 || /^#/ { next }
+# Never publish a link that would run script.
+tolower($1) ~ /^[ \t]*(javascript|data|vbscript):/ { next }
+{
+    total++
+    item = sprintf("<li><a href=\"%s\">%s</a> <small>%s</small>", esc($1), \
+                   esc($2 == "" ? $1 : $2), esc(host($1)))
+    n = split($3, tag, " ")
+    for (i = 1; i <= n; i++)
+        item = item sprintf(" <a class=t href=\"#%s\">%s</a>", esc(tag[i]), esc(tag[i]))
+    if (n == 0) { n = 1; tag[1] = "" }
+    for (i = 1; i <= n; i++) {
+        if (!(tag[i] in items)) names[++count] = tag[i]
+        items[tag[i]] = items[tag[i]] item "\n"
+    }
+}
+END {
+    # Insertion sort: tags by name, the untagged last.
+    for (i = 2; i <= count; i++) {
+        name = names[i]
+        for (j = i - 1; j > 0 && (names[j] == "" || (name != "" && names[j] > name)); j--)
+            names[j + 1] = names[j]
+        names[j + 1] = name
+    }
+    t = esc(ENVIRON["SBM_TITLE"])
+    print "<!doctype html>"
+    print "<meta charset=utf-8>"
+    print "<meta name=viewport content=\"width=device-width, initial-scale=1\">"
+    print "<title>" t "</title>"
+    print "<style>"
+    print "body{max-width:50em;margin:1em auto;padding:0 1em;font:1em/1.5 sans-serif}"
+    print "#q{width:100%;box-sizing:border-box;font:inherit;padding:.3em}"
+    print "ul{padding-left:1.2em}small,.t{color:#777;font-size:.85em}.t{margin-left:.3em}"
+    print "</style>"
+    print "<h1>" t "</h1>"
+    print "<input id=q type=search placeholder=\"filter " total " bookmarks\" hidden>"
+    printf "<p>"
+    for (i = 1; i <= count; i++)
+        if (names[i] != "")
+            printf "<a href=\"#%s\">%s</a> ", esc(names[i]), esc(names[i])
+    print "</p>"
+    for (i = 1; i <= count; i++) {
+        name = names[i] == "" ? "untagged" : names[i]
+        printf "<section><h2 id=\"%s\">%s</h2>\n<ul>\n%s</ul></section>\n", \
+               esc(name), esc(name), items[names[i]]
+    }
+    print "<script>"
+    print "var q=document.getElementById(\"q\");q.hidden=false;"
+    print "function f(){var w=q.value.toLowerCase().split(/\\s+/);"
+    print "document.querySelectorAll(\"section\").forEach(function(s){var n=0;"
+    print "s.querySelectorAll(\"li\").forEach(function(l){"
+    print "var t=(l.textContent+\" \"+l.firstChild.href).toLowerCase();"
+    print "var ok=w.every(function(x){return t.indexOf(x)>=0});l.hidden=!ok;if(ok)n++});"
+    print "s.hidden=!n})}"
+    print "q.oninput=f;q.value=new URLSearchParams(location.search).get(\"q\")||\"\";f();"
+    print "</script>"
+}'

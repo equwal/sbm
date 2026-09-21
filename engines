@@ -1,0 +1,5 @@
+w    | https://en.wikipedia.org/w/index.php?search=%s
+gh   | https://github.com/search?q=%s
+aw   | https://wiki.archlinux.org/index.php?search=%s
+man  | https://man.archlinux.org/search?q=%s
+yt   | https://www.youtube.com/results?search_query=%s
