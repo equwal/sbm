@@ -466,9 +466,16 @@ nextorder () {
     esac
 }
 
+# alltags: the tags of $USERTAGS and the tags that the bookmarks use. A tag
+# that no bookmark uses yet is a tag too.
+alltags () {
+    { sed 's/[ |].*//' "$USERTAGS" 2>/dev/null
+      awk -F'\t' 'NF && !/^#/ { print $3 }' "$BOOKMARKS" | tr ' ' '\n'
+    } | sed '/^$/d' | sort -u
+}
+
 picktag () {
-    tag=$( { printf '(all)\n'; cut -f3 "$BOOKMARKS" | tr ' ' '\n' \
-             | sed '/^$/d' | sort -u; } | pick 'tag:')
+    tag=$( { printf '(all)\n'; alltags; } | pick 'tag:')
     case $tag in
         '')      ;;
         '(all)') tagfilter= ;;
