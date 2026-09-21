@@ -1,0 +1,10 @@
+#!/bin/sh
+
+# sbm-setup: give the user the example tags and search keywords of sbm.
+# The installer runs this script. It keeps the files that the user has.
+
+d=${XDG_DATA_HOME:-$HOME/.local/share}/sbm
+mkdir -p "$d"
+for f in engines usertags; do
+    [ -e "$d/$f" ] || cp "/usr/local/share/sbm/$f" "$d/"
+done

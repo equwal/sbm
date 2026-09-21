@@ -1,0 +1,90 @@
+# Test bm on Linux and macOS, and make the Windows installer and the macOS
+# image. For a tag vVERSION, also make a release with them.
+name: build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: make check (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: make check
+      - name: shellcheck contrib
+        if: runner.os == 'Linux'
+        run: >-
+          shellcheck -s sh
+          contrib/windows/fzf contrib/windows/sbm.sh contrib/windows/sbm-setup
+          contrib/windows/build-installer.sh
+          contrib/macos/sbm contrib/macos/sbm-run contrib/macos/build-dmg.sh
+
+  windows:
+    name: Windows installer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y nsis
+      - run: sh contrib/windows/build-installer.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: sbm-*-setup.exe
+          if-no-files-found: error
+
+  macos:
+    name: macOS image
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh contrib/macos/build-dmg.sh
+      - name: Check the image
+        run: |
+          dmg=$(echo sbm-*.dmg)
+          hdiutil verify "$dmg"
+          mnt=$(mktemp -d)
+          hdiutil attach -nobrowse -readonly -mountpoint "$mnt" "$dmg"
+          app=$mnt/sbm.app
+          plutil -lint "$app/Contents/Info.plist"
+          codesign --verify --deep --strict "$app"
+          lipo -archs "$app/Contents/Resources/bin/fzf"
+          "$app/Contents/Resources/bin/fzf" --version
+          printf 'https://a.example\tA\tt\n' > "$RUNNER_TEMP/bookmarks"
+          test "$(BOOKMARKS=$RUNNER_TEMP/bookmarks "$app/Contents/Resources/sbm-run" --list | cut -f1)" = https://a.example
+          hdiutil detach "$mnt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: sbm-*.dmg
+          if-no-files-found: error
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [check, windows, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check that the tag is v and the VERSION of config.mk
+        run: test "$GITHUB_REF_NAME" = "v$(sed -n 's/^VERSION=//p' config.mk)"
+      - run: make dist
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Make the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME" --title "sbm ${GITHUB_REF_NAME#v}"
+          --generate-notes sbm-*.tar.gz sbm-*-setup.exe sbm-*.dmg

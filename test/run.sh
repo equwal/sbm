@@ -493,6 +493,34 @@ if command -v jq >/dev/null 2>&1; then
             "https://blog.example/feed${TAB}A blog${TAB}news-blogs" \
             "https://deep.example/${TAB}Deep${TAB}news-blogs tech" \
             "http://www.bar.example${TAB}Bar dupe${TAB}")"
+
+    # profiles <dir> <folder>...: a browser directory with these profiles,
+    # each with the fixture as its bookmarks.
+    profiles () {
+        dir=$1
+        shift
+        for folder; do
+            mkdir -p "$dir/$folder"
+            cp "$here/fixtures/chromium.json" "$dir/$folder/Bookmarks"
+        done
+    }
+    json_rows=$(printf '%s\n' \
+        "https://bar.example/${TAB}Bar site${TAB}" \
+        "https://blog.example/feed${TAB}A blog${TAB}news-blogs" \
+        "https://deep.example/${TAB}Deep${TAB}news-blogs tech" \
+        "http://www.bar.example${TAB}Bar dupe${TAB}")
+    profiles "$work/linux/.config/BraveSoftware/Brave-Browser" Default 'Profile 1'
+    eq 'bm-import brave reads the bookmarks of every profile' \
+        "$(HOME=$work/linux XDG_CONFIG_HOME='' LOCALAPPDATA='' $IMPORT brave)" \
+        "$(printf '%s\n%s\n' "$json_rows" "$json_rows")"
+    profiles "$work/mac/Library/Application Support/Google/Chrome" Default 'Profile 2'
+    eq 'bm-import finds a browser in ~/Library/Application Support' \
+        "$(HOME=$work/mac XDG_CONFIG_HOME='' LOCALAPPDATA='' $IMPORT chrome | wc -l | tr -d ' ')" '8'
+    profiles "$work/win/Microsoft/Edge/User Data" Default
+    eq 'bm-import finds a browser in LOCALAPPDATA' \
+        "$(HOME=$work/nohome XDG_CONFIG_HOME='' LOCALAPPDATA=$work/win $IMPORT edge)" "$json_rows"
+    HOME=$work/nohome XDG_CONFIG_HOME='' LOCALAPPDATA='' $IMPORT brave 2>/dev/null
+    eq 'bm-import fails when it finds no profiles of the browser' "$?" '1'
 else
     printf 'skip bm-import json: no jq\n'
 fi

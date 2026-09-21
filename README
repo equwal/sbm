@@ -45,6 +45,9 @@ Edit TOOLS in config.mk to choose what gets installed, then
     make install                        # to /usr/local/bin
     make PREFIX="$HOME/.local" install
 
+Each release on GitHub also has an installer for Windows and a portable app
+for macOS. See Windows and macOS below.
+
 == Setup ==
 Nothing is required. Bookmarks are kept in ~/.local/share/sbm/bookmarks
 ($XDG_DATA_HOME is honoured) and the file is created on first use.
@@ -153,9 +156,12 @@ Links that would run script (javascript:, data:) are never written.
     bm-import vivaldi | bm --merge            # or chrome, brave, edge, chromium
     bm-import path/to/Bookmarks | bm --merge  # a Chromium JSON file (needs jq)
 
-Folder names become tags ("Dev Tools" becomes dev-tools). bm --merge skips
-what you already have, so importing twice adds nothing. Look before you
-merge: bm-import prints plain bookmark lines.
+A browser name imports the bookmarks of all profiles of that browser. The
+profiles are in ~/.config, in ~/Library/Application Support on macOS, or in
+%LOCALAPPDATA% on Windows. Folder names become tags ("Dev Tools" becomes
+dev-tools). bm --merge skips what you already have, so importing twice adds
+nothing. To sync new browser bookmarks into bm, run the same command again.
+Look before you merge: bm-import prints plain bookmark lines.
 
 == Dead links ==
     bm-check
@@ -208,12 +214,59 @@ choices on stdin as one of:
 
 Printing nothing means the user cancelled. test/fakemenu is a small example.
 
+== Windows ==
+bm runs under Cygwin. Get sbm-VERSION-setup.exe from a release on GitHub and
+start it. The installer puts bm and the bm-* tools in /usr/local/bin. It
+makes a desktop shortcut that opens bm in a mintty window, and Esc closes
+the window. The key of the shortcut is Ctrl+Alt+Shift+F24. Almost no keyboard
+has an F24 key, so keyboard firmware can use this key combination without
+conflicts.
+
+The installer also puts fzf.exe, the Windows build of fzf, in
+/usr/local/libexec/sbm. Do not use the fzf package of Cygwin. That package is
+version 0.11 from 2016, and it has no --preview and no --expect. The wrapper
+/usr/local/bin/fzf lets fzf.exe run in mintty. /etc/profile.d/sbm.sh sets
+SBM_OPEN, SBM_COPY, SBM_PASTE and SBM_FZF_OPTS for Cygwin. Settings in
+~/.bash_profile win.
+
+For bm-title, bm-check and bm-import, install the curl and jq packages of
+Cygwin. The Windows builds of curl and jq do not understand Cygwin paths,
+such as /dev/null. To remove sbm, use Apps in the Windows settings. The
+uninstaller keeps your bookmarks. contrib/windows/build-installer.sh makes
+the installer with NSIS.
+
+== macOS ==
+Get sbm-VERSION.dmg from a release on GitHub, and drag sbm.app to
+Applications. The app contains bm, the bm-* tools and fzf, so it needs no
+other software. sbm.app opens bm in a Terminal window. The first time, macOS
+asks if sbm can control Terminal.
+
+The app has no signature from a registered developer, so macOS stops it the
+first time. To open it, use Open Anyway in System Settings, Privacy &
+Security. Or remove the quarantine attribute:
+
+    xattr -dr com.apple.quarantine /Applications/sbm.app
+
+To open sbm with a key, make a shortcut with the action Open App in the
+Shortcuts app, and give it a keyboard shortcut. macOS has function keys up
+to F20. To use the tools in a shell, add these lines to ~/.zprofile:
+
+    PATH=/Applications/sbm.app/Contents/Resources/bin:$PATH
+    export SBM_OPEN=open SBM_COPY=pbcopy SBM_PASTE=pbpaste
+
+contrib/macos/build-dmg.sh makes the image on a Mac.
+
 == Tests ==
     make check
 
 runs shellcheck, when installed, and test/run.sh, under sh. Run the tests
 under another shell with SBM_SH=dash sh test/run.sh. They script dmenu, fzf
 and curl, so they need no display and no network.
+
+== Releases ==
+Push a tag vVERSION, with VERSION from config.mk. GitHub Actions then runs
+make check on Linux and macOS, and makes the installer and the image. It
+makes a release with them and with the tarball of make dist.
 
 == Credits ==
 Some ideas taken from Karl Voit:

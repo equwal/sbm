@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# fzf: run fzf.exe, the Windows build of fzf, under Cygwin.
+#
+# The fzf package of Cygwin is version 0.11 from 2016. That version has no
+# --preview and no --expect, and bm uses both. The installer puts fzf.exe
+# in ../libexec/sbm. Without the installer, this script uses the fzf.exe in
+# PATH, for example from "winget install junegunn.fzf".
+#
+# MSYS=enable_pcon: when MSYS does not contain enable_pcon, fzf.exe in mintty
+# starts itself again through a proxy for MSYS2. Cygwin does not need the
+# proxy, because Cygwin gives native programs a pseudo console. Cygwin
+# ignores MSYS.
+#
+# SHELL: fzf.exe runs --preview and --bind commands with $SHELL. When SHELL
+# is not set, fzf.exe uses cmd.exe, and the bm preview fails.
+
+exe=${0%/*}/../libexec/sbm/fzf.exe
+[ -x "$exe" ] || exe=fzf.exe
+MSYS=${MSYS:+$MSYS }enable_pcon
+SHELL=${SHELL:-/bin/sh}
+export MSYS SHELL
+exec "$exe" "$@"
