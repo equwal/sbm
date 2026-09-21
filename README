@@ -224,10 +224,15 @@ Printing nothing means the user cancelled. test/fakemenu is a small example.
 == Windows ==
 bm runs under Cygwin. Get sbm-VERSION-setup.exe from a release on GitHub and
 start it. The installer puts bm and the bm-* tools in /usr/local/bin. It
-makes a desktop shortcut that opens bm in a mintty window, and Esc closes
-the window. The key of the shortcut is Ctrl+Alt+Shift+F24. Almost no keyboard
-has an F24 key, so keyboard firmware can use this key combination without
-conflicts.
+makes a Start menu entry and a desktop shortcut that open bm in a mintty
+window, and Esc closes the window. The key of the desktop shortcut is
+Ctrl+Alt+Shift+F24. Almost no keyboard has an F24 key, so keyboard firmware
+can use this key combination without conflicts.
+
+The installer imports the bookmarks of all profiles of the Chromium browsers
+(Brave, Chrome, Chromium, Edge and Vivaldi). A Startup entry, sbm-watch, runs
+bm-watch at each login, so new browser bookmarks come into bm a few seconds
+after you add them. The import needs the jq package of Cygwin.
 
 The installer also puts fzf.exe, the Windows build of fzf, in
 /usr/local/libexec/sbm. Do not use the fzf package of Cygwin. That package is
