@@ -11,8 +11,10 @@ fi
 [ "${SBM_FETCH:-1}" != 0 ] || exit 0
 
 # Lines are gathered until the title has been closed; awk then leaves, and
-# curl stops downloading.
-curl -sL --max-time 3 -A 'Mozilla/5.0' -- "$1" 2>/dev/null | LC_ALL=C awk '
+# curl stops downloading. dd caps it at 64k for pages that are one long line
+# (it may pass a little less when its reads come up short; never more).
+curl -sL --max-time 3 -A 'Mozilla/5.0' -- "$1" 2>/dev/null \
+    | dd bs=1024 count=64 2>/dev/null | LC_ALL=C awk '
     function title(s,    start, end) {
         start = index(tolower(s), "<title")
         if (!start) return

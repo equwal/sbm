@@ -42,14 +42,26 @@ esac
 command -v curl >/dev/null 2>&1 || { printf 'bm-check: needs curl\n' >&2; exit 1; }
 [ $# -gt 0 ] || set -- "${BOOKMARKS:-${XDG_DATA_HOME:-$HOME/.local/share}/sbm/bookmarks}"
 
-# Eight at a time. Every report is one short line from one printf, so they do
-# not get mixed up.
+# Eight probes in flight until the list runs out, like xargs -P 8, with a
+# FIFO as the semaphore: it starts out holding eight tokens, a probe takes one
+# before it starts and puts it back when it is done. Opening a FIFO blocks
+# until the other end is opened too, hence the helper that opens it for
+# writing while we open it for reading. Every report is one short line from
+# one printf, so concurrent probes do not garble each other.
+fifo=${TMPDIR:-/tmp}/bm-check.$$
+mkfifo -m 600 "$fifo" || { printf 'bm-check: cannot create %s\n' "$fifo" >&2; exit 1; }
+trap 'rm -f "$fifo"' EXIT INT TERM
+: > "$fifo" &
+# shellcheck disable=SC2094  # both ends of the FIFO, on purpose
+exec 3< "$fifo" 4> "$fifo"
+rm -f "$fifo"
+printf '\n\n\n\n\n\n\n\n' >&4
+
 bad=$(cat -- "$@" | awk -F'\t' 'NF && !/^#/ { print $1 }' | {
-    n=0
     while IFS= read -r url; do
-        check "$url" &
-        n=$((n + 1))
-        [ $((n % 8)) -eq 0 ] && wait
+        # shellcheck disable=SC2034  # the token is only waited for
+        read -r token <&3
+        { check "$url"; echo >&4; } &
     done
     wait
 })

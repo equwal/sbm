@@ -277,11 +277,24 @@ find_dup () {
         NF && !/^#/ && norm($1) == want { print; exit }' "$BOOKMARKS"
 }
 
+# tmpfile <file>: create an empty temporary file and print its name. Beside
+# <file> if that directory can be written to, else in $TMPDIR. noclobber makes
+# the shell create it with O_EXCL, so a file or symlink planted under that
+# name in a shared /tmp is refused rather than followed: mktemp, in POSIX.
+tmpfile () {
+    for candidate in "$1.tmp.$$" "${TMPDIR:-/tmp}/sbm.$$.${1##*/}"; do
+        if (umask 077; set -C; : > "$candidate") 2>/dev/null; then
+            printf '%s\n' "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # rewrite <file>: replace <file> with stdin. Through cat, not mv, so that a
-# symlinked file stays a symlink and keeps its mode. The temporary file sits
-# beside it, in a directory that is ours, rather than in a shared /tmp.
+# symlinked file stays a symlink and keeps its mode.
 rewrite () {
-    tmp=$1.tmp.$$
+    tmp=$(tmpfile "$1") || die "cannot create a temporary file for $1"
     cat > "$tmp" && cat "$tmp" > "$1"
     rc=$?
     rm -f "$tmp"
@@ -289,14 +302,16 @@ rewrite () {
 }
 
 # bump <url>: count a use, for the "used" order. The counts live beside the
-# bookmark file, which stays a plain list.
+# bookmark file, which stays a plain list: url, count, time of last use.
+# srand() returns the previous seed, and the first seed is the time of day:
+# that is "date +%s" for a POSIX that has no %s.
 bump () {
     [ -e "$USAGE" ] || : > "$USAGE" || return 0
     SBM_URL=$1 awk -F'\t' '
-        BEGIN { OFS = "\t" }
-        $1 == ENVIRON["SBM_URL"] { $2 = $2 + 1; seen = 1 }
+        BEGIN { OFS = "\t"; srand(); now = srand() }
+        $1 == ENVIRON["SBM_URL"] { $2 = $2 + 1; $3 = now; seen = 1 }
         { print }
-        END { if (!seen) print ENVIRON["SBM_URL"], 1 }
+        END { if (!seen) print ENVIRON["SBM_URL"], 1, now }
     ' "$USAGE" | rewrite "$USAGE"
 }
 
@@ -421,8 +436,7 @@ add () {
 # merge: bookmark lines on stdin (a bare URL per line will do); the ones not
 # known yet are appended. This is how the output of bm-import gets in.
 merge () {
-    new=$BOOKMARKS.new.$$
-    : > "$new" || die "cannot write $new"
+    new=$(tmpfile "$BOOKMARKS") || die 'cannot create a temporary file'
     SBM_FILE=$BOOKMARKS SBM_NEW=$new awk -F'\t' "$AWK_NORM"'
         BEGIN {
             while ((getline line < ENVIRON["SBM_FILE"]) > 0) {

@@ -344,9 +344,37 @@ answers 'Alpha'; $BM -o
 answers 'Zed';   $BM -c
 eq 'sort used puts the most used first' "$(order -S used)" 'c b a'
 eq 'use counts are kept beside the bookmarks' \
-    "$(grep -c "^https://c.example${TAB}2\$" "$BOOKMARKS.usage")" '1'
+    "$(grep -c "^https://c.example${TAB}2${TAB}[0-9]\{10,\}\$" "$BOOKMARKS.usage")" '1'
 answers 'Alpha'; $BM -d >/dev/null
 eq 'delete forgets the use count' "$(grep -c 'c.example' "$BOOKMARKS.usage")" '0'
+
+# A writable file in a directory that is not: temporary files go to $TMPDIR.
+if [ "$(id -u)" -ne 0 ]; then
+    mkdir "$work/locked" "$work/tmp"
+    printf '%s\n' "https://keep.example${TAB}Keep${TAB}" "https://drop.example${TAB}Drop${TAB}" \
+        > "$work/locked/bookmarks"
+    : > "$work/locked/bookmarks.usage"
+    chmod 555 "$work/locked"
+    (
+        BOOKMARKS="$work/locked/bookmarks" TMPDIR="$work/tmp"
+        export BOOKMARKS TMPDIR
+        answers 'Drop'; $BM -d >/dev/null
+        answers 'Keep'; $BM -c
+        printf 'https://merged.example\n' | $BM -m >/dev/null
+    )
+    eq 'a read-only directory does not stop delete, merge or use counts' \
+        "$(cut -f1 "$work/locked/bookmarks" | paste -sd ' ' -) $(cut -f1,2 "$work/locked/bookmarks.usage")" \
+        "https://keep.example https://merged.example https://keep.example${TAB}1"
+    eq 'and no temporary file is left behind' "$(find "$work/tmp" "$work/locked" -name '*sbm*' -o -name '*.tmp.*' | wc -l | tr -d ' ')" '0'
+    ln -s "$work/locked/bookmarks" "$work/tmp/sbm.planted"
+    # tmpfile relies on this: with noclobber, ">" refuses a name that exists,
+    # a symlink included, instead of writing through it.
+    # shellcheck disable=SC2016
+    eq 'a name planted in the temporary directory is refused, not written through' \
+        "$( if ${SBM_SH:-sh} -c 'set -C; : > "$1"' sh "$work/tmp/sbm.planted" 2>/dev/null
+            then echo written; else echo refused; fi) $(grep -c . "$work/locked/bookmarks")" 'refused 2'
+    chmod 755 "$work/locked"
+fi
 
 # ---- bm-title, and add with it installed ----
 
@@ -363,6 +391,17 @@ for arg in "$@"; do
     url=$arg
 done
 if [ -z "$probe" ]; then
+    case $url in
+        *oneline*)
+            # A minified page: one line, the title beyond the first 64k.
+            awk 'BEGIN { for (i = 0; i < 70000; i++) printf "x"; print "<title>too far</title>" }'
+            exit 0
+            ;;
+        *nearline*)
+            awk 'BEGIN { for (i = 0; i < 60000; i++) printf "x"; print "<title>near enough</title>" }'
+            exit 0
+            ;;
+    esac
     printf '<html><head>\n<meta charset="utf-8"><TITLE lang="en">\n  Fetched &amp; decoded\n  &#39;title&#39; </Title></head><body><title>no</title>'
     exit 0
 fi
@@ -379,6 +418,9 @@ export SBM_TEST_CURLLOG="$work/curllog"
 
 eq 'bm-title prints a decoded, squeezed title' \
     "$(PATH="$work/net:$PATH" SBM_FETCH=1 $TITLE https://fetch.example)" "Fetched & decoded 'title'"
+eq 'bm-title stops reading a one-line page at 64k' \
+    "$(PATH="$work/net:$PATH" SBM_FETCH=1 $TITLE https://oneline.example)|$(PATH="$work/net:$PATH" SBM_FETCH=1 $TITLE https://nearline.example)" \
+    '|near enough'
 $TITLE 2>/dev/null
 eq 'bm-title wants exactly one url' "$?" '2'
 
@@ -479,6 +521,10 @@ eq 'bm-check is a filter' \
 eq 'bm-check takes a plain list of urls' \
     "$(printf 'https://dead.example\nhttps://ok.example\n' | PATH="$work/net:$PATH" $CHECK -)" \
     "404${TAB}https://dead.example"
+many=$(i=0; while [ $i -lt 40 ]; do printf 'https://dead%d.example\n' $i; i=$((i + 1)); done)
+eq 'bm-check reports every link of a long list exactly once' \
+    "$(printf '%s\n' "$many" | PATH="$work/net:$PATH" $CHECK - | cut -f2 | sort -u | wc -l | tr -d ' ')" '40'
+eq 'bm-check copes with an empty list' "$(: | PATH="$work/net:$PATH" $CHECK -; echo $?)" '0'
 eq 'bm-check says nothing about healthy links' \
     "$(printf 'https://ok.example\n' | PATH="$work/net:$PATH" $CHECK -; echo $?)" '0'
 

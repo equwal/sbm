@@ -29,7 +29,10 @@ other Unix tools, and you install only the ones you use:
     bm --list | grep -i wiki | bm-html -t Wikis - > wikis.html
 
 Everything is POSIX sh and POSIX utilities: no bash, no mktemp, no GNU
-options. make check runs shellcheck -s sh over all of it.
+options. make check runs shellcheck -s sh over all of it. Where the usual
+tool is not in POSIX, the script says what stands in for it: noclobber for
+mktemp, a FIFO of tokens for xargs -P, dd for head -c, awk's srand() for
+date +%s.
 
 == Requirements ==
 dmenu (or fzf), one of xclip, xsel or wl-clipboard, sh, awk, make.
