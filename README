@@ -208,7 +208,9 @@ there. The server is free software, so you can run your own:
 
     bm-sync login https://sbm.example.org
 
-The sbm app for Android is at https://github.com/equwal/sbm-android.
+The sbm app for Android is at https://github.com/equwal/sbm-android. A demo of
+sync between bm and the browser add-on (80 seconds):
+https://github.com/equwal/sbm-sync#sbm-sync
 
 == Migrating from the old format ==
 Earlier versions wrote "URL description | tag tag".
