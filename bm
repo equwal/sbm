@@ -1,29 +1,23 @@
 #!/bin/sh
 
-# sbm: manage bookmarks with a menu program and a basic TSV file.
-# Bookmark lines are: URL<tab>description<tab>tag tag tag
+# bm: bookmarks in a plain file, picked with dmenu (or fzf).
 #
-# Everything below is optional configuration through the environment:
-#   BOOKMARKS    bookmark file    (default: $XDG_DATA_HOME/sbm/bookmarks)
-#   USERTAGS     tag choices file (default: $XDG_DATA_HOME/sbm/usertags)
-#   SBM_MENU     fzf, dmenu, or a custom command (see README)
-#   SBM_FZF_OPTS extra options for every fzf call
-#   SBM_SORT     default sort: used, recent, url, desc or tag
-#   SBM_COPY     command reading the clipboard contents from stdin
-#   SBM_PASTE    command writing the clipboard contents to stdout
-#   SBM_OPEN     command opening a URL given as its argument
-#   SBM_FETCH    0 to never download a page for its title
-#   SBM_GIT      0 to never commit, 1 to commit even in a shared repository
+#     URL<tab>description<tab>tag tag tag
+#
+# bm owns that file and nothing else. Importing, link checking, the web page
+# and so on are separate bm-* filters; see README.
 
 DMENULINES=${DMENULINES:-15}
 DATADIR=${XDG_DATA_HOME:-$HOME/.local/share}/sbm
 BOOKMARKS=${BOOKMARKS:-$DATADIR/bookmarks}
 USERTAGS=${USERTAGS:-$DATADIR/usertags}
+ENGINES=${SBM_ENGINES:-$DATADIR/engines}
+SEARCH=${SBM_SEARCH:-https://duckduckgo.com/?q=%s}
 USAGE=$BOOKMARKS.usage
 TAB=$(printf '\t')
 
-# awk function shared by everything that compares URLs: drops the scheme, a
-# leading www. and trailing slashes, and lowercases the host.
+# Two URLs are the same bookmark when they differ only in scheme, a leading
+# www., trailing slashes or the case of the host.
 AWK_NORM='
 function norm(u,    host, rest, i) {
     sub(/^[A-Za-z][A-Za-z0-9+.-]*:\/\//, "", u)
@@ -34,21 +28,6 @@ function norm(u,    host, rest, i) {
     sub(/^www\./, "", host)
     sub(/\/+$/, "", rest)
     return host rest
-}'
-
-# awk functions for text taken out of HTML.
-AWK_HTML='
-function decode(s) {
-    gsub(/&lt;/, "<", s); gsub(/&gt;/, ">", s); gsub(/&quot;/, "\"", s)
-    gsub(/&#39;|&#x27;|&apos;/, "\047", s); gsub(/&nbsp;/, " ", s)
-    gsub(/&amp;/, "\\&", s)
-    gsub(/[ \t\r]+/, " ", s); sub(/^ /, "", s); sub(/ $/, "", s)
-    return s
-}
-function slug(s) {
-    s = tolower(s)
-    gsub(/[^a-z0-9]+/, "-", s); sub(/^-/, "", s); sub(/-$/, "", s)
-    return s
 }'
 
 die () {
@@ -62,33 +41,28 @@ have () {
 
 usage () {
     cat <<'EOF'
-usage: bm [options] [action]
-Without an action: browse the bookmarks (fzf), or be prompted for an action.
-Actions:
-  -c, --copy          copy a bookmark's URL to the clipboard
-  -o, --open          open a bookmark (-p, --plumb is an alias)
-  -a, --add [url]     add a bookmark; the url defaults to the selection or
-                      the clipboard
-  -e, --edit          open $BOOKMARKS in $EDITOR at a bookmark
-  -d, --delete        delete a bookmark
-  -l, --list          print bookmarks
-  -s, --search <ere>  print bookmarks matching an extended regex
-      --import <src>  import a browser export: a Netscape HTML or Chromium
-                      JSON file, or one of vivaldi chrome brave edge chromium
-      --check         report dead and permanently moved links
-      --migrate       convert an old "url desc | tags" file to TSV
-  -h, --help          show this help
-Options:
-  -t, --tag <tag>     only consider bookmarks with this tag
-  -S, --sort <mode>   used (default), recent, url, desc or tag
-      --print         with --copy or --open: print the URL instead
+usage: bm [-t tag] [-S order] [action]
+Without an action: browse. Pick a bookmark, then what to do with it. Text
+that is no bookmark is opened as an address, or searched for on the web.
+  -o, --open        open a bookmark, an address or a web search
+                    (-p, --plumb is the same)
+  -c, --copy        copy a bookmark's URL to the clipboard
+      --print       print a bookmark's URL
+  -a, --add [url]   add a bookmark; the url defaults to the selection
+  -e, --edit        open the bookmark file in $EDITOR at a bookmark
+  -d, --delete      delete a bookmark
+  -l, --list        print the bookmarks
+  -m, --merge       add the bookmarks on stdin, skipping the known ones
+  -t, --tag <tag>   only consider bookmarks with this tag
+  -S, --sort <o>    used (default), recent, url, desc or tag
+  -h, --help
 EOF
 }
 
 # ---- external programs: menu, clipboard, opener ----
 
-# dmenu whenever there is a display to draw it on, as always. fzf stands in
-# on a bare terminal, or when dmenu is not installed.
+# dmenu whenever there is a display to draw it on. fzf stands in on a bare
+# terminal, or when dmenu is not installed.
 pickmenu () {
     [ -n "$SBM_MENU" ] && return
     if [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
@@ -117,36 +91,42 @@ fzfcmd () {
     fzf -i --reverse --height=40% $SBM_FZF_OPTS "$@"
 }
 
-# pick <prompt>: choices on stdin, the chosen line on stdout.
+# fzfpick <fzf options>: the chosen line, or else what was typed, which is
+# what dmenu gives by itself.
+fzfpick () {
+    out=$(fzfcmd --print-query "$@")
+    chosen=$(printf '%s\n' "$out" | sed -n 2p)
+    printf '%s\n' "${chosen:-$(printf '%s\n' "$out" | sed -n 1p)}"
+}
+
+# pick <prompt>: choices on stdin; the chosen line, or the typed text.
 pick () {
     case $SBM_MENU in
-        fzf)   fzfcmd --prompt="$1 " ;;
+        fzf)   fzfpick --prompt="$1 " ;;
         dmenu) dmenu -i -l "$DMENULINES" -p "$1" ;;
         *)     custommenu pick "$1" ;;
     esac
 }
 
-# pickmulti <prompt>: like pick, but any number of lines can be chosen. Text
-# that is not among the choices may come back too: that is a new tag.
+# pickmulti <prompt>: like pick, for any number of lines.
 pickmulti () {
+    choices=$(cat)
     case $SBM_MENU in
         fzf)
-            choices=$(cat)
             while :; do
                 out=$(printf '%s\n' "$choices" | fzfcmd --multi --print-query \
                       --prompt="$1 " --header='TAB marks, ENTER confirms. No match: ENTER creates the typed tag, ESC finishes.')
-                query=$(printf '%s\n' "$out" | sed -n 1p)
                 chosen=$(printf '%s\n' "$out" | sed 1d)
                 if [ -n "$chosen" ]; then
                     printf '%s\n' "$chosen"
                     break
                 fi
-                [ -n "$query" ] || break
-                printf '%s\n' "$query"
+                typed=$(printf '%s\n' "$out" | sed -n 1p)
+                [ -n "$typed" ] || break
+                printf '%s\n' "$typed"
             done
             ;;
         dmenu)
-            choices=$(cat)
             while :; do
                 one=$(printf 'done | (choose when done)\n%s\n' "$choices" \
                       | dmenu -i -l "$DMENULINES" -p "$1")
@@ -155,7 +135,7 @@ pickmulti () {
                 printf '%s\n' "$one"
             done
             ;;
-        *)  custommenu multi "$1" ;;
+        *)  printf '%s\n' "$choices" | custommenu multi "$1" ;;
     esac
 }
 
@@ -163,11 +143,7 @@ pickmulti () {
 ask () {
     case $SBM_MENU in
         fzf)
-            if [ -n "$2" ]; then
-                printf '%s [%s]: ' "$1" "$2" >&2
-            else
-                printf '%s: ' "$1" >&2
-            fi
+            printf '%s%s: ' "$1" "${2:+ [$2]}" >&2
             IFS= read -r reply || reply=
             printf '%s\n' "${reply:-$2}"
             ;;
@@ -190,9 +166,8 @@ clip_out () {
     fi
 }
 
-# Never fatal: an unreadable clipboard only means there is no default URL.
-# Under X11 the primary selection comes first, as it always has, and the
-# clipboard second; add takes the first line that looks like a URL.
+# The primary selection first, then the clipboard. Never fatal: without
+# either there is just no URL to suggest.
 clip_in () {
     # shellcheck disable=SC2086
     if   [ -n "$SBM_PASTE" ]; then $SBM_PASTE
@@ -213,34 +188,18 @@ opener () {
     fi
 }
 
-# fetch_title <url>: print the page's <title>, or nothing.
-fetch_title () {
-    [ "${SBM_FETCH:-1}" != 0 ] && have curl || return 0
-    curl -sL --max-time 3 -A 'Mozilla/5.0' -- "$1" 2>/dev/null \
-        | head -c 65536 | LC_ALL=C tr '\r\n\t' '   ' | LC_ALL=C awk "$AWK_HTML"'
-        {
-            start = index(tolower($0), "<title")
-            if (!start) exit
-            rest = substr($0, start)
-            rest = substr(rest, index(rest, ">") + 1)
-            end = index(tolower(rest), "</title")
-            if (end) rest = substr(rest, 1, end - 1)
-            print decode(rest)
-            exit
-        }'
-}
+# ---- the bookmark file ----
 
-# ---- bookmark file helpers ----
-
-# Bookmarks restricted to $tagfilter and ordered by $sortmode.
+# Bookmarks restricted to $tagfilter and ordered by $sortorder, each followed
+# by a fourth field: how often it was used.
 rows () {
-    SBM_TAG=$tagfilter SBM_MODE=$sortmode SBM_USAGE=$USAGE awk -F'\t' '
+    SBM_TAG=$tagfilter SBM_ORDER=$sortorder SBM_USAGE=$USAGE awk -F'\t' '
         BEGIN {
             while ((getline line < ENVIRON["SBM_USAGE"]) > 0) {
                 split(line, f, "\t")
                 used[f[1]] = f[2]
             }
-            mode = ENVIRON["SBM_MODE"]
+            order = ENVIRON["SBM_ORDER"]
         }
         NF == 0 || /^#/ { next }
         ENVIRON["SBM_TAG"] != "" {
@@ -251,37 +210,64 @@ rows () {
             if (!hit) next
         }
         {
-            if (mode == "used")        key = sprintf("%09d", 999999999 - used[$1])
-            else if (mode == "recent") key = sprintf("%09d", 999999999 - NR)
-            else if (mode == "desc")   key = tolower($2)
-            else if (mode == "tag")    key = tolower($3)
-            else                       key = ""
-            printf "%s\t%s\t%s\n", key, tolower($1), $0
+            if (order == "used")        key = sprintf("%09d", 999999999 - used[$1])
+            else if (order == "recent") key = sprintf("%09d", 999999999 - NR)
+            else if (order == "desc")   key = tolower($2)
+            else if (order == "tag")    key = tolower($3)
+            else                        key = ""
+            printf "%s\t%s\t%s\t%s\t%s\t%d\n", key, tolower($1), $1, $2, $3, used[$1]
         }' "$BOOKMARKS" | LC_ALL=C sort -t"$TAB" -k1,1 -k2,2 | cut -f3-
 }
 
-# display: turn rows into url<tab>aligned text, for fzf --with-nth=2..
-display () {
-    awk -F'\t' '{
-        desc = $2
-        if (length(desc) > 44) desc = substr(desc, 1, 42) ".."
-        printf "%s\t%-44s  %-18s  %s\n", $1, desc, $3, $1
+# details <url>: a bookmark in full, one field per line.
+details () {
+    rows | SBM_URL=$1 awk -F'\t' '$1 == ENVIRON["SBM_URL"] {
+        printf "%s\n%s\ntags: %s\nused: %d\n", $1, $2, $3, $4
+        exit
     }'
 }
 
-# choose_url <prompt>: let the user pick a bookmark, print its URL.
+is_bookmark () {
+    SBM_URL=$1 awk -F'\t' '$1 == ENVIRON["SBM_URL"] { found = 1; exit }
+        END { exit !found }' "$BOOKMARKS"
+}
+
+# For fzf a fifth field is added, and it is all that is listed. The first
+# four feed the preview, which follows the cursor.
+PREVIEW="printf '%s\n%s\ntags: %s\nused: %s\n' {1} {2} {3} {4}"
+fzfrows () {
+    awk -F'\t' 'NF {
+        desc = $2
+        if (length(desc) > 44) desc = substr(desc, 1, 42) ".."
+        printf "%s\t%-44s  %-18s  %s\n", $0, desc, $3, $1
+    }'
+}
+
+# withpreview <fzf command and options>: for the output of fzfrows.
+withpreview () {
+    "$@" --delimiter="$TAB" --with-nth=5.. \
+         --preview-window=down:5:wrap --preview="$PREVIEW"
+}
+
+# choose <prompt>: a bookmark's URL, or whatever else the user typed.
+choose () {
+    if [ "$SBM_MENU" = fzf ]; then
+        rows | fzfrows | withpreview fzfpick --prompt="$1 "
+    else
+        rows | cut -f1-3 | pick "$1"
+    fi | cut -f1
+}
+
+# choose_url <prompt>: like choose, but only a bookmark will do.
 choose_url () {
-    list=$(rows)
-    if [ -z "$list" ]; then
+    if [ -z "$(rows)" ]; then
         [ -n "$tagfilter" ] && die "no bookmarks tagged '$tagfilter'"
         die 'no bookmarks yet; add one with: bm --add'
     fi
-    if [ "$SBM_MENU" = fzf ]; then
-        printf '%s\n' "$list" | display \
-            | fzfcmd --delimiter="$TAB" --with-nth=2.. --prompt="$1 "
-    else
-        printf '%s\n' "$list" | pick "$1"
-    fi | cut -f1
+    url=$(choose "$1")
+    [ -n "$url" ] || exit 1
+    is_bookmark "$url" || die "not a bookmark: $url"
+    printf '%s\n' "$url"
 }
 
 # find_dup <url>: print the bookmark that is the same page as <url>, if any.
@@ -291,29 +277,32 @@ find_dup () {
         NF && !/^#/ && norm($1) == want { print; exit }' "$BOOKMARKS"
 }
 
-# rewrite <file>: replace <file> with stdin, keeping its permissions and any
-# symlink pointing at it.
+# rewrite <file>: replace <file> with stdin. Through cat, not mv, so that a
+# symlinked file stays a symlink and keeps its mode. The temporary file sits
+# beside it, in a directory that is ours, rather than in a shared /tmp.
 rewrite () {
-    tmp=$(mktemp "${TMPDIR:-/tmp}/sbm.XXXXXX") || die 'mktemp failed'
+    tmp=$1.tmp.$$
     cat > "$tmp" && cat "$tmp" > "$1"
     rc=$?
     rm -f "$tmp"
     return $rc
 }
 
-# bump <url>: count a use, for the "used" sort order.
+# bump <url>: count a use, for the "used" order. The counts live beside the
+# bookmark file, which stays a plain list.
 bump () {
     [ -e "$USAGE" ] || : > "$USAGE" || return 0
-    SBM_URL=$1 SBM_NOW=$(date +%s) awk -F'\t' '
+    SBM_URL=$1 awk -F'\t' '
         BEGIN { OFS = "\t" }
-        $1 == ENVIRON["SBM_URL"] { $2 = $2 + 1; $3 = ENVIRON["SBM_NOW"]; seen = 1 }
+        $1 == ENVIRON["SBM_URL"] { $2 = $2 + 1; seen = 1 }
         { print }
-        END { if (!seen) print ENVIRON["SBM_URL"], 1, ENVIRON["SBM_NOW"] }
+        END { if (!seen) print ENVIRON["SBM_URL"], 1 }
     ' "$USAGE" | rewrite "$USAGE"
 }
 
 # learn_tags: tag names on stdin; the ones $USERTAGS lacks are appended to it.
 learn_tags () {
+    [ -e "$USERTAGS" ] || : > "$USERTAGS"
     while IFS= read -r name; do
         [ -n "$name" ] || continue
         sed 's/[ |].*//' "$USERTAGS" | grep -Fxq -- "$name" \
@@ -321,88 +310,85 @@ learn_tags () {
     done
 }
 
-# autocommit <message>: record a change when the bookmarks live in their own
-# git repository. Never pushes.
-autocommit () {
-    [ "${SBM_GIT:-auto}" != 0 ] && have git || return 0
-    dir=$(cd "$(dirname "$BOOKMARKS")" && pwd -P) || return 0
-    top=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || return 0
-    if [ "${SBM_GIT:-auto}" != 1 ] && [ "$top" != "$dir" ]; then
-        return 0
-    fi
-    set -- "$1" "$BOOKMARKS"
-    [ "$(cd "$(dirname "$USERTAGS")" 2>/dev/null && pwd -P)" = "$dir" ] \
-        && [ -e "$USERTAGS" ] && set -- "$@" "$USERTAGS"
-    message=$1
-    shift
-    git -C "$dir" add -- "$@" 2>/dev/null || return 0
-    git -C "$dir" diff --cached --quiet -- "$@" && return 0
-    git -C "$dir" commit -q -m "$message" -- "$@" >/dev/null 2>&1 \
-        || printf 'bm: git commit failed in %s\n' "$dir" >&2
+# changed <message>: the file was written. bm-commit, where installed, keeps
+# its history in git.
+changed () {
+    if have bm-commit; then bm-commit "$1"; fi
 }
 
 # ---- actions ----
 
 copy_url () {
     bump "$1"
-    if [ -n "$printurl" ]; then
-        printf '%s\n' "$1"
-    else
-        printf '%s' "$1" | clip_out
-    fi
+    printf '%s' "$1" | clip_out
 }
 
 open_url () {
     bump "$1"
-    if [ -n "$printurl" ]; then
-        printf '%s\n' "$1"
-    else
-        opener "$1"
-    fi
+    opener "$1"
 }
 
 edit_url () {
     line=$(SBM_URL=$1 awk -F'\t' \
            '$1 == ENVIRON["SBM_URL"] { print NR; exit }' "$BOOKMARKS")
     ${VISUAL:-${EDITOR:-vi}} "+${line:-1}" "$BOOKMARKS"
-    autocommit 'bm: edit'
+    changed 'bm: edit'
 }
 
 delete_url () {
-    SBM_URL=$1 awk -F'\t' '$1 != ENVIRON["SBM_URL"]' "$BOOKMARKS" \
-        | rewrite "$BOOKMARKS" || die "could not rewrite $BOOKMARKS"
-    if [ -e "$USAGE" ]; then
-        SBM_URL=$1 awk -F'\t' '$1 != ENVIRON["SBM_URL"]' "$USAGE" \
-            | rewrite "$USAGE"
-    fi
-    autocommit "bm: delete $1"
+    for file in "$BOOKMARKS" "$USAGE"; do
+        [ -e "$file" ] || continue
+        SBM_URL=$1 awk -F'\t' '$1 != ENVIRON["SBM_URL"]' "$file" \
+            | rewrite "$file" || die "could not rewrite $file"
+    done
+    changed "bm: delete $1"
 }
 
-copy () {
-    url=$(choose_url 'copy:')
-    [ -n "$url" ] || exit 1
-    copy_url "$url"
+# urlencode <text>: for a query string. awk has no ord(), hence the table.
+urlencode () {
+    printf '%s' "$1" | LC_ALL=C awk '
+        BEGIN { for (i = 1; i < 256; i++) ord[sprintf("%c", i)] = i }
+        {
+            for (i = 1; i <= length($0); i++) {
+                c = substr($0, i, 1)
+                if (c ~ /[A-Za-z0-9._~-]/) out = out c
+                else if (c == " ")         out = out "+"
+                else                       out = out sprintf("%%%02X", ord[c])
+            }
+        }
+        END { printf "%s", out }'
+}
+
+# go <text>: open text that is not a bookmark. One word with "://" or a dot
+# in it is an address. Anything else is a web search: by the engine whose
+# keyword is the first word ($ENGINES holds "keyword | url with %s" lines),
+# or else by $SEARCH.
+go () {
+    case $1 in
+        *' '*) ;;
+        *://*) opener "$1"; return ;;
+        *.*)   opener "https://$1"; return ;;
+    esac
+    engine=$SEARCH
+    query=$1
+    if [ "${1%% *}" != "$1" ] && [ -r "$ENGINES" ]; then
+        found=$(SBM_KEY=${1%% *} awk -F' *[|] *' \
+                '$1 == ENVIRON["SBM_KEY"] { print $2; exit }' "$ENGINES")
+        if [ -n "$found" ]; then
+            engine=$found
+            query=${1#* }
+        fi
+    fi
+    opener "$(printf '%s\n' "$engine" | sed "s|%s|$(urlencode "$query")|")"
 }
 
 plumb () {
-    url=$(choose_url 'open:')
+    url=$(choose 'open:')
     [ -n "$url" ] || exit 1
-    open_url "$url"
+    if is_bookmark "$url"; then open_url "$url"; else go "$url"; fi
 }
 
-edit () {
-    url=$(choose_url 'edit:')
-    [ -n "$url" ] || exit 1
-    edit_url "$url"
-}
-
-delete () {
-    url=$(choose_url 'delete:')
-    [ -n "$url" ] || exit 1
-    delete_url "$url"
-    printf 'deleted %s\n' "$url"
-}
-
+# Exit status 3 means "already bookmarked".
 add () {
     url=$1
     if [ -z "$url" ]; then
@@ -414,10 +400,13 @@ add () {
     dup=$(find_dup "$url")
     if [ -n "$dup" ]; then
         printf 'bm: already bookmarked:\n%s\n' "$dup" >&2
-        exit 1
+        exit 3
     fi
 
-    desc=$(ask 'description' "$(fetch_title "$url")" | tr '\t' ' ')
+    # bm-title, where installed, fetches the page's title.
+    title=
+    if have bm-title; then title=$(bm-title "$url"); fi
+    desc=$(ask 'description' "$title" | tr '\t' ' ')
 
     [ -e "$USERTAGS" ] || : > "$USERTAGS"
     names=$(pickmulti 'tags:' < "$USERTAGS" | sed 's/[ |].*//' | sed '/^$/d' \
@@ -426,234 +415,84 @@ add () {
     tags=$(printf '%s\n' "$names" | paste -sd ' ' -)
 
     printf '%s\t%s\t%s\n' "$url" "$desc" "$tags" >> "$BOOKMARKS"
-    autocommit "bm: add $url"
+    changed "bm: add $url"
 }
 
-list () {
-    rows
-}
-
-search () {
-    rows | grep -Ei -- "$1"
-}
-
-# browser_file <name>: where a Chromium style browser keeps its bookmarks.
-browser_file () {
-    case $1 in
-        vivaldi)  dir='vivaldi' ;;
-        chrome)   dir='google-chrome' ;;
-        brave)    dir='BraveSoftware/Brave-Browser' ;;
-        edge)     dir='microsoft-edge' ;;
-        chromium) dir='chromium' ;;
-    esac
-    printf '%s\n' "${XDG_CONFIG_HOME:-$HOME/.config}/$dir/Default/Bookmarks"
-}
-
-# Chromium JSON to rows. Folder names become tags; the trash is left out.
-import_json () {
-    have jq || die 'importing a Chromium bookmark file needs jq'
-    jq -r '
-        def slug: ascii_downcase | gsub("[^a-z0-9]+"; "-")
-                  | sub("^-"; "") | sub("-$"; "");
-        def emit(path):
-            if .type == "url" then
-                [.url, (.name | gsub("[\t\r\n]+"; " ")),
-                 (path | unique | join(" "))] | join("\t")
-            elif (.children? | type) == "array" then
-                (path + ([.name | slug] | map(select(. != "")))) as $sub
-                | .children[] | emit($sub)
-            else empty end;
-        .roots | to_entries[]
-        | select(.key != "trash" and (.value | type) == "object")
-        | .value.children[]? | emit([])' "$1"
-}
-
-# Netscape bookmark HTML to rows. <H3> opens a folder, </DL> closes it.
-import_html () {
-    awk "$AWK_HTML"'
-    {
-        upper = toupper($0)
-        if ((at = index(upper, "<H3")) > 0) {
-            name = substr($0, at)
-            name = substr(name, index(name, ">") + 1)
-            end = index(toupper(name), "</H3")
-            if (end) name = substr(name, 1, end - 1)
-            folder[++depth] = slug(decode(name))
-        }
-        if ((at = index(upper, "HREF=\"")) > 0) {
-            url = substr($0, at + 6)
-            rest = substr(url, index(url, "\"") + 1)
-            url = decode(substr(url, 1, index(url, "\"") - 1))
-            name = substr(rest, index(rest, ">") + 1)
-            end = index(toupper(name), "</A")
-            if (end) name = substr(name, 1, end - 1)
-            tags = ""
-            for (i = 1; i <= depth; i++)
-                if (folder[i] != "" && index(" " tags " ", " " folder[i] " ") == 0)
-                    tags = tags (tags == "" ? "" : " ") folder[i]
-            printf "%s\t%s\t%s\n", url, decode(name), tags
-        }
-        if (index(upper, "</DL>") > 0 && depth > 0) depth--
-    }' "$1"
-}
-
-import () {
-    src=$1
-    case $src in
-        vivaldi|chrome|brave|edge|chromium) src=$(browser_file "$src") ;;
-    esac
-    [ -r "$src" ] || die "cannot read $src"
-
-    new=$(mktemp "${TMPDIR:-/tmp}/sbm.XXXXXX") || die 'mktemp failed'
-    case $(LC_ALL=C tr -d ' \t\r\n' < "$src" | head -c 1) in
-        '{') import_json "$src" ;;
-        *)   import_html "$src" ;;
-    esac | SBM_FILE=$BOOKMARKS SBM_NEW=$new awk -F'\t' "$AWK_NORM"'
+# merge: bookmark lines on stdin (a bare URL per line will do); the ones not
+# known yet are appended. This is how the output of bm-import gets in.
+merge () {
+    new=$BOOKMARKS.new.$$
+    : > "$new" || die "cannot write $new"
+    SBM_FILE=$BOOKMARKS SBM_NEW=$new awk -F'\t' "$AWK_NORM"'
         BEGIN {
             while ((getline line < ENVIRON["SBM_FILE"]) > 0) {
                 split(line, f, "\t")
                 seen[norm(f[1])] = 1
             }
         }
-        $1 !~ /^(https?|ftp|file):\/\// { next }
+        NF == 0 || /^#/ { next }
         seen[norm($1)]++ { skipped++; next }
-        { print > ENVIRON["SBM_NEW"]; added++ }
-        END { printf "imported %d, skipped %d duplicates\n", added, skipped }'
-
-    [ -e "$USERTAGS" ] || : > "$USERTAGS"
+        { printf "%s\t%s\t%s\n", $1, $2, $3 > ENVIRON["SBM_NEW"]; added++ }
+        END { printf "added %d, skipped %d duplicates\n", added, skipped }'
     cut -f3 "$new" | tr ' ' '\n' | sort -u | learn_tags
     cat "$new" >> "$BOOKMARKS"
     rm -f "$new"
-    autocommit "bm: import $(basename "$src")"
+    changed 'bm: merge'
 }
 
-# check_one <url>: print a line when the link is dead or has moved for good.
-check_one () {
-    probe='%{http_code} %{redirect_url}'
-    res=$(curl -sI --max-time 10 -A 'Mozilla/5.0' -o /dev/null -w "$probe" \
-          -- "$1" 2>/dev/null)
-    case ${res%% *} in
-        403|405|000|'')
-            # Some servers refuse HEAD; ask for the first byte instead.
-            res=$(curl -s -r 0-0 --max-time 10 -A 'Mozilla/5.0' -o /dev/null \
-                  -w "$probe" -- "$1" 2>/dev/null)
-            ;;
-    esac
-    code=${res%% *}
-    case $code in
-        301|308) printf '%s\t%s\t%s\n' "$code" "$1" "${res#* }" ;;
-        2*|3*)   ;;
-        *)       printf '%s\t%s\n' "${code:-000}" "$1" ;;
+nextorder () {
+    case $sortorder in
+        used)   sortorder=recent ;;
+        recent) sortorder=url ;;
+        url)    sortorder=desc ;;
+        desc)   sortorder=tag ;;
+        *)      sortorder=used ;;
     esac
 }
 
-check () {
-    have curl || die 'checking links needs curl'
-    self=$(command -v -- "$0") || self=$0
-    bad=$(rows | cut -f1 | tr '\n' '\0' \
-          | xargs -0 -P 8 -n 1 sh "$self" --check-one)
-    if [ -z "$bad" ]; then
-        printf 'all links ok\n'
-        return 0
+picktag () {
+    tag=$( { printf '(all)\n'; cut -f3 "$BOOKMARKS" | tr ' ' '\n' \
+             | sed '/^$/d' | sort -u; } | pick 'tag:')
+    case $tag in
+        '')      ;;
+        '(all)') tagfilter= ;;
+        *)       tagfilter=$tag ;;
+    esac
+}
+
+# add exits, which must not end a browsing session; and when it refuses a
+# duplicate the user has to get to see that before the list comes back.
+add_inside () {
+    ( add '' )
+    if [ $? -eq 3 ]; then
+        ask 'already bookmarked; press ENTER' >/dev/null
     fi
-    printf '%s\n' "$bad"
-    return 1
 }
 
-# Old lines look like "url description | tag tag". Lines that already have a
-# tab are left alone, so running this twice is harmless. bm-migrate does the
-# same for any file, without needing bm.
-migrate () {
-    if ! needs_migration; then
-        printf 'nothing to migrate in %s\n' "$BOOKMARKS"
-        return 0
-    fi
-    # Never overwrite an earlier backup: it may be the only original left.
-    backup=$BOOKMARKS.bak
-    n=0
-    while [ -e "$backup" ]; do
-        n=$((n + 1))
-        backup=$BOOKMARKS.bak.$n
-    done
-    cp -p "$BOOKMARKS" "$backup" || die "could not back up $BOOKMARKS"
-    awk '
-        /\t/ || /^#/ || NF == 0 { print; next }
-        {
-            url = $1
-            desc = $0
-            sub(/^[ ]*[^ ]+[ ]*/, "", desc)
-            tags = ""
-            if (match(desc, / \|[^|]*$/)) {
-                tags = substr(desc, RSTART + 2)
-                desc = substr(desc, 1, RSTART - 1)
-            }
-            gsub(/^ +| +$/, "", desc)
-            gsub(/^ +| +$/, "", tags)
-            printf "%s\t%s\t%s\n", url, desc, tags
-        }' "$backup" | rewrite "$BOOKMARKS" \
-        || die "could not rewrite $BOOKMARKS; the original is in $backup"
-    printf 'migrated %s (original kept as %s)\n' "$BOOKMARKS" "$backup"
-    autocommit 'bm: migrate to TSV'
-}
-
-needs_migration () {
-    awk '!/\t/ && !/^#/ && NF { found = 1; exit } END { exit !found }' \
-        "$BOOKMARKS"
-}
-
-promptaction () {
-    action=$(printf 'copy\nopen\nadd\nedit\ndelete\n' | pick 'action:')
-    [ -n "$action" ] || exit 1
-}
-
-nextsort () {
-    case $sortmode in
-        used)   sortmode=recent ;;
-        recent) sortmode=url ;;
-        url)    sortmode=desc ;;
-        desc)   sortmode=tag ;;
-        *)      sortmode=used ;;
-    esac
-}
-
-# browse: everything from one fzf screen. Opening and copying leave it, the
-# other keys come back to it.
-browse () {
+# browse_fzf: fzf can bind keys, so one list does everything. Opening and
+# copying leave it, the other keys come back to it.
+browse_fzf () {
     while :; do
-        list=$(rows)
-        header="ENTER open  ^Y copy  ^A add  ^D delete  ^E edit  ^T tag [${tagfilter:-all}]  ^S sort [$sortmode]"
-        out=$(if [ -n "$list" ]; then printf '%s\n' "$list" | display; fi \
-              | fzfcmd --expect=ctrl-y,ctrl-a,ctrl-d,ctrl-e,ctrl-t,ctrl-s \
-                       --delimiter="$TAB" --with-nth=2.. \
-                       --header="$header" --prompt='bookmark: ')
+        header="ENTER open  ^Y copy  ^A add  ^D delete  ^E edit  ^T tag [${tagfilter:-all}]  ^S sort [$sortorder]"
+        out=$(rows | fzfrows | withpreview fzfcmd --print-query \
+              --expect=ctrl-y,ctrl-a,ctrl-d,ctrl-e,ctrl-t,ctrl-s \
+              --header="$header" --prompt='bookmark: ')
         [ -n "$out" ] || exit 1
-        key=$(printf '%s\n' "$out" | sed -n 1p)
-        url=$(printf '%s\n' "$out" | sed -n 2p | cut -f1)
+        typed=$(printf '%s\n' "$out" | sed -n 1p)
+        key=$(printf '%s\n' "$out" | sed -n 2p)
+        url=$(printf '%s\n' "$out" | sed -n 3p | cut -f1)
 
         case $key in
-            ctrl-a)
-                # add exits on a cancelled prompt or a duplicate; keep that
-                # from ending the browser, and leave its message readable.
-                ( add '' ) || ask 'press ENTER to continue' >/dev/null
-                continue
-                ;;
-            ctrl-t)
-                tag=$( { printf '(all)\n'; cut -f3 "$BOOKMARKS" | tr ' ' '\n' \
-                         | sed '/^$/d' | sort -u; } | pick 'tag:')
-                case $tag in
-                    '')      ;;
-                    '(all)') tagfilter= ;;
-                    *)       tagfilter=$tag ;;
-                esac
-                continue
-                ;;
-            ctrl-s)
-                nextsort
-                continue
-                ;;
+            ctrl-a) add_inside; continue ;;
+            ctrl-t) picktag; continue ;;
+            ctrl-s) nextorder; continue ;;
         esac
-
-        [ -n "$url" ] || { [ -n "$key" ] && continue; exit 1; }
+        if [ -z "$url" ]; then
+            [ -n "$key" ] && continue
+            [ -n "$typed" ] || exit 1
+            go "$typed"
+            exit 0
+        fi
         case $key in
             ctrl-y) copy_url "$url"; exit 0 ;;
             ctrl-e) edit_url "$url" ;;
@@ -663,6 +502,33 @@ browse () {
                 esac
                 ;;
             *)      open_url "$url"; exit 0 ;;
+        esac
+    done
+}
+
+# browse_menu: dmenu can neither bind keys nor preview, so a second menu does
+# both: it shows the bookmark in full and asks what to do with it. Closing it
+# goes back to the list; closing the list leaves.
+browse_menu () {
+    while :; do
+        chosen=$( { printf '[add]\n'; rows | cut -f1-3; } | pick 'bookmark:')
+        [ -n "$chosen" ] || exit 1
+        if [ "$chosen" = '[add]' ]; then
+            add_inside
+            continue
+        fi
+        url=$(printf '%s\n' "$chosen" | cut -f1)
+        if ! is_bookmark "$url"; then
+            go "$chosen"
+            exit 0
+        fi
+        action=$( { printf 'open\ncopy\nedit\ndelete\n'
+                    details "$url" | sed 's/^/  /'; } | pick 'do:')
+        case $action in
+            open)   open_url "$url"; exit 0 ;;
+            copy)   copy_url "$url"; exit 0 ;;
+            edit)   edit_url "$url" ;;
+            delete) delete_url "$url" ;;
         esac
     done
 }
@@ -686,37 +552,25 @@ needarg () {
 }
 
 action=
-actionarg=
+addurl=
 tagfilter=
-printurl=
-sortmode=${SBM_SORT:-used}
+sortorder=${SBM_SORT:-used}
 while [ $# -gt 0 ]; do
     case $1 in
         -h|--help)   setaction help ;;
         -c|--copy)   setaction copy ;;
+        --print)     setaction print ;;
         -o|--open|-p|--plumb) setaction open ;;
         -e|--edit)   setaction edit ;;
         -d|--delete) setaction delete ;;
         -l|--list)   setaction list ;;
-        --migrate)   setaction migrate ;;
-        --check)     setaction check ;;
-        --print)     printurl=1 ;;
+        -m|--merge)  setaction merge ;;
         -a|--add)
             setaction add
             case ${2-} in
                 ''|-*) ;;
-                *) actionarg=$2; shift ;;
+                *) addurl=$2; shift ;;
             esac
-            ;;
-        -s|--search|--import|--check-one)
-            needarg "$1" $# "${2-}"
-            case $1 in
-                --import)    setaction import ;;
-                --check-one) setaction check-one ;;
-                *)           setaction search ;;
-            esac
-            actionarg=$2
-            shift
             ;;
         -t|--tag)
             needarg "$1" $# "${2-}"
@@ -725,7 +579,7 @@ while [ $# -gt 0 ]; do
             ;;
         -S|--sort)
             needarg "$1" $# "${2-}"
-            sortmode=$2
+            sortorder=$2
             shift
             ;;
         *)
@@ -737,53 +591,43 @@ while [ $# -gt 0 ]; do
     shift
 done
 
-case $sortmode in
+case $sortorder in
     used|recent|url|desc|tag) ;;
     *)
-        printf 'bm: unknown sort order: %s\n' "$sortmode" >&2
+        printf 'bm: unknown sort order: %s\n' "$sortorder" >&2
         exit 2
         ;;
 esac
 
-case $action in
-    help)      usage; exit 0 ;;
-    check-one) check_one "$actionarg"; exit 0 ;;
-esac
+if [ "$action" = help ]; then
+    usage
+    exit 0
+fi
 
 mkdir -p "$(dirname "$BOOKMARKS")" || die "cannot create directory for $BOOKMARKS"
 [ -e "$BOOKMARKS" ] || : > "$BOOKMARKS" || die "cannot create $BOOKMARKS"
 
-if [ "$action" != migrate ] && needs_migration; then
-    printf 'bm: %s has lines in the old format; run: bm --migrate\n' \
-        "$BOOKMARKS" >&2
+if awk '!/\t/ && !/^#/ && NF { found = 1; exit } END { exit !found }' "$BOOKMARKS"
+then
+    printf 'bm: %s has lines in the old format; run: bm-migrate\n' "$BOOKMARKS" >&2
 fi
 
 case $action in
-    list|search|import|check|migrate) ;;
+    list|merge) ;;
     *) pickmenu ;;
 esac
 
-if [ -z "$action" ]; then
-    if [ "$SBM_MENU" = fzf ]; then
-        action=browse
-    elif [ -n "$tagfilter" ]; then
-        action=copy
-    else
-        promptaction
-    fi
-fi
-
 case $action in
-    browse)  browse ;;
-    copy)    copy ;;
-    open)    plumb ;;
-    add)     add "$actionarg" ;;
-    edit)    edit ;;
-    delete)  delete ;;
-    list)    list ;;
-    search)  search "$actionarg" ;;
-    import)  import "$actionarg" ;;
-    check)   check ;;
-    migrate) migrate ;;
-    *)       die "unknown action: $action" ;;
+    '')
+        if [ "$SBM_MENU" = fzf ]; then browse_fzf; else browse_menu; fi
+        ;;
+    open)   plumb ;;
+    copy)   url=$(choose_url 'copy:')   && copy_url "$url" ;;
+    print)  url=$(choose_url 'print:')  && bump "$url" && printf '%s\n' "$url" ;;
+    edit)   url=$(choose_url 'edit:')   && edit_url "$url" ;;
+    delete) url=$(choose_url 'delete:') && delete_url "$url" \
+                && printf 'deleted %s\n' "$url" ;;
+    add)    add "$addurl" ;;
+    list)   rows | cut -f1-3 ;;
+    merge)  merge ;;
 esac

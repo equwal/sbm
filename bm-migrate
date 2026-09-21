@@ -102,7 +102,7 @@ cp -p "$file" "$backup" || die "could not back up to $backup"
 
 # Through cat rather than mv, so that a symlinked bookmark file stays a symlink
 # and keeps its permissions.
-tmp=$(mktemp "${TMPDIR:-/tmp}/sbm.XXXXXX") || die 'mktemp failed'
+tmp=$file.tmp.$$
 trap 'rm -f "$tmp"' EXIT INT TERM
 if ! convert "$backup" > "$tmp" || ! cat "$tmp" > "$file"; then
     die "could not rewrite $file; the original is in $backup"

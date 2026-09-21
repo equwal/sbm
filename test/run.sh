@@ -1,17 +1,25 @@
 #!/bin/sh
 
-# Non-interactive tests for bm. Menus are scripted through test/fakemenu, and
-# the clipboard and opener are stubs that write to files.
+# Non-interactive tests for bm and the bm-* tools. Menus are scripted through
+# test/fakemenu and test/fakefzf, and the clipboard and opener are stubs that
+# write to files.
 # usage: sh test/run.sh        (SBM_SH=dash sh test/run.sh to pick the shell)
 
 # Several groups point BOOKMARKS somewhere else inside a subshell on purpose.
 # shellcheck disable=SC2030,SC2031
 
 here=$(cd "$(dirname "$0")" && pwd)
-BM="${SBM_SH:-sh} $here/../bm"
+top=$(cd "$here/.." && pwd)
+BM="${SBM_SH:-sh} $top/bm"
+MIGRATE="${SBM_SH:-sh} $top/bm-migrate"
+IMPORT="${SBM_SH:-sh} $top/bm-import"
+CHECK="${SBM_SH:-sh} $top/bm-check"
+HTML="${SBM_SH:-sh} $top/bm-html"
+TITLE="${SBM_SH:-sh} $top/bm-title"
 TAB=$(printf '\t')
 
-work=$(mktemp -d "${TMPDIR:-/tmp}/sbmtest.XXXXXX") || exit 1
+work=${TMPDIR:-/tmp}/sbmtest.$$
+mkdir -m 700 "$work" || exit 1
 trap 'rm -rf "$work"' EXIT INT TERM
 
 export BOOKMARKS="$work/bookmarks"
@@ -114,7 +122,7 @@ for dup in http://example.com/docs https://example.com/docs/ \
     answers 'Second' 'code'
     $BM -a "$dup" 2>/dev/null
     rc=$?
-    eq "add rejects duplicate $dup" "$rc $(wc -l < "$BOOKMARKS" | tr -d ' ')" '1 1'
+    eq "add rejects duplicate $dup with status 3" "$rc $(wc -l < "$BOOKMARKS" | tr -d ' ')" '3 1'
 done
 answers 'Other path' 'code'
 $BM -a https://example.com/Docs 2>/dev/null
@@ -154,18 +162,24 @@ eq 'list honours the tag filter' "$($BM -t code -l | cut -f1 | paste -sd ' ' -)"
 
 eq 'tag filter matches whole tags only' "$($BM -t cod -l)" ''
 
-answers 'example'
+answers 'example' 'copy'
 $BM -t sec
-eq 'a tag filter alone implies copy' \
+eq 'a tag filter narrows the browser' \
     "$(cat "$work/clipboard")" 'https://a.example'
 
 $BM -t nosuchtag -c 2>/dev/null
 eq 'copy with an unused tag fails' "$?" '1'
 
-answers 'copy' 'Sea'
+answers 'Sea' 'copy'
 $BM
-eq 'no arguments prompts for the action' \
+eq 'no arguments: pick the bookmark, then what to do' \
     "$(cat "$work/clipboard")" 'https://c.example'
+
+answers 'Ay'
+eq '--print prints the url' "$($BM --print)" 'https://a.example'
+answers 'no such bookmark'
+$BM -c 2>/dev/null
+eq 'copy refuses text that is not a bookmark' "$?" '1'
 
 answers 'Bee'
 $BM -d >/dev/null
@@ -187,44 +201,20 @@ kill "$watchdog" 2>/dev/null
 eq 'dmenu tag loop ends when the menu is closed' \
     "$(cat "$BOOKMARKS")" "https://dmenu.example${TAB}Escaped${TAB}sec"
 
-# ---- migrate ----
+# ---- bm-migrate ----
 
 reset
-printf '%s\n' \
-    'https://old.example Old style | code sec' \
-    'https://equwal.com  Spenser Truex'"'"'s website.' \
-    'https://pipe.example a | b | lib' \
-    "https://new.example${TAB}Already TSV${TAB}org" > "$BOOKMARKS"
-expected=$(printf '%s\n' \
-    "https://old.example${TAB}Old style${TAB}code sec" \
-    "https://equwal.com${TAB}Spenser Truex's website.${TAB}" \
-    "https://pipe.example${TAB}a | b${TAB}lib" \
-    "https://new.example${TAB}Already TSV${TAB}org")
+printf '%s\n' 'https://old.example Old style | code sec' > "$BOOKMARKS"
+eq 'bm warns about an old format file and names the tool' \
+    "$($BM -l 2>&1 >/dev/null | grep -c 'bm-migrate')" '1'
 
-eq 'old format triggers a warning' \
-    "$($BM -l 2>&1 >/dev/null | grep -c -- '--migrate')" '1'
-$BM --migrate >/dev/null
-eq 'migrate converts old lines to TSV' "$(cat "$BOOKMARKS")" "$expected"
-eq 'migrate leaves a backup' "$(grep -c . "$BOOKMARKS.bak")" '4'
-$BM --migrate >/dev/null
-eq 'migrate is idempotent' "$(cat "$BOOKMARKS")" "$expected"
-eq 'no warning after migrating' "$($BM -l 2>&1 >/dev/null)" ''
 # backups: how many backups sit beside the bookmark file.
 backups () {
     set -- "$BOOKMARKS".bak*
     if [ -e "$1" ]; then echo $#; else echo 0; fi
 }
-eq 'migrating again leaves the backup of the original alone' \
-    "$(grep -c ' | ' "$BOOKMARKS.bak") $(backups)" '2 1'
 
-printf '%s\n' 'https://late.example Added by hand | org' >> "$BOOKMARKS"
-$BM --migrate >/dev/null
-eq 'a later migration backs up beside the first, not over it' \
-    "$(grep -c ' | ' "$BOOKMARKS.bak") $(grep -c 'late.example' "$BOOKMARKS.bak.1")" '2 1'
 
-# ---- bm-migrate, the standalone script ----
-
-MIGRATE="${SBM_SH:-sh} $here/../bm-migrate"
 old_file () {
     rm -f "$BOOKMARKS".bak*
     printf '%s\n' \
@@ -273,9 +263,7 @@ eq 'bm-migrate never overwrites an earlier backup' \
 old_file
 eq 'bm-migrate defaults to the BOOKMARKS variable' "$($MIGRATE >/dev/null; cat "$BOOKMARKS")" "$migrated"
 
-old_file
-$BM --migrate >/dev/null
-eq 'bm --migrate and bm-migrate agree' "$(cat "$BOOKMARKS")" "$migrated"
+eq 'bm is quiet once the file is migrated' "$($BM -l 2>&1 >/dev/null)" ''
 
 old_file
 ln -s "$BOOKMARKS" "$work/link"
@@ -308,10 +296,22 @@ $BM -t 2>/dev/null
 eq '-t without a tag exits 2' "$?" '2'
 
 missing=
-for flag in --copy --open --plumb --add --edit --delete --list --migrate --tag; do
+for flag in --copy --open --plumb --print --add --edit --delete --list --merge --tag --sort; do
     $BM -h | grep -q -e "$flag" || missing="$missing $flag"
 done
 eq 'help mentions every flag' "$missing" ''
+
+for gone in '--import x' --check --migrate '-s x'; do
+    # shellcheck disable=SC2086
+    $BM $gone 2>/dev/null
+    eq "bm no longer does $gone itself" "$?" '2'
+done
+
+bad=
+for script in bm bm-migrate bm-import bm-check bm-html bm-title bm-commit; do
+    [ "$(sed -n 1p "$top/$script")" = '#!/bin/sh' ] || bad="$bad $script"
+done
+eq 'every script asks for /bin/sh' "$bad" ''
 
 # ---- sorting and use counts ----
 
@@ -344,23 +344,11 @@ answers 'Alpha'; $BM -o
 answers 'Zed';   $BM -c
 eq 'sort used puts the most used first' "$(order -S used)" 'c b a'
 eq 'use counts are kept beside the bookmarks' \
-    "$(grep -c "^https://c.example${TAB}2${TAB}" "$BOOKMARKS.usage")" '1'
+    "$(grep -c "^https://c.example${TAB}2\$" "$BOOKMARKS.usage")" '1'
 answers 'Alpha'; $BM -d >/dev/null
 eq 'delete forgets the use count' "$(grep -c 'c.example' "$BOOKMARKS.usage")" '0'
 
-# ---- search and --print ----
-
-seed
-eq 'search matches any field, ignoring case' \
-    "$($BM -s 'ZED|sec' | cut -f1 | paste -sd ' ' -)" 'https://a.example https://b.example'
-$BM -s nothinglikethis >/dev/null
-eq 'search without a match exits 1' "$?" '1'
-eq 'search honours the tag filter' "$($BM -t code -s example | wc -l | tr -d ' ')" '2'
-answers 'Mid'
-eq '--print writes the url to stdout' "$($BM -c --print)" 'https://a.example'
-eq '--print leaves the clipboard alone' "$([ -e "$work/clipboard" ] || echo untouched)" 'untouched'
-
-# ---- add: fetched titles, new tags ----
+# ---- bm-title, and add with it installed ----
 
 mkdir "$work/net"
 cat > "$work/net/curl" <<'FAKE'
@@ -389,23 +377,28 @@ FAKE
 chmod +x "$work/net/curl"
 export SBM_TEST_CURLLOG="$work/curllog"
 
+eq 'bm-title prints a decoded, squeezed title' \
+    "$(PATH="$work/net:$PATH" SBM_FETCH=1 $TITLE https://fetch.example)" "Fetched & decoded 'title'"
+$TITLE 2>/dev/null
+eq 'bm-title wants exactly one url' "$?" '2'
+
 reset
 : > "$SBM_TEST_CURLLOG"
 answers '<default>' 'code'
-PATH="$work/net:$PATH" SBM_FETCH=1 $BM -a https://fetch.example 2>/dev/null
+PATH="$top:$work/net:$PATH" SBM_FETCH=1 $BM -a https://fetch.example 2>/dev/null
 eq 'add offers the fetched <title> as the description' \
     "$(cut -f2 "$BOOKMARKS")" "Fetched & decoded 'title'"
 
 reset
 : > "$SBM_TEST_CURLLOG"
 answers 'Mine' 'code'
-PATH="$work/net:$PATH" SBM_FETCH=1 $BM -a https://fetch.example 2>/dev/null
+PATH="$top:$work/net:$PATH" SBM_FETCH=1 $BM -a https://fetch.example 2>/dev/null
 eq 'a typed description beats the fetched title' "$(cut -f2 "$BOOKMARKS")" 'Mine'
 
 reset
 : > "$SBM_TEST_CURLLOG"
 answers 'Offline' 'code'
-PATH="$work/net:$PATH" SBM_FETCH=0 $BM -a https://fetch.example 2>/dev/null
+PATH="$top:$work/net:$PATH" SBM_FETCH=0 $BM -a https://fetch.example 2>/dev/null
 eq 'SBM_FETCH=0 never runs curl' "$(cat "$SBM_TEST_CURLLOG")" ''
 
 reset
@@ -425,39 +418,46 @@ eq 'a missing tag file is created from the first new tag' \
     "$(cat "$USERTAGS")|$(cut -f3 "$BOOKMARKS")" 'first | |first'
 cp "$here/../usertags" "$USERTAGS"
 
-# ---- import ----
+# ---- bm-import and bm --merge ----
 
 reset
 printf '%s\n' "https://old.example${TAB}Kept${TAB}org" > "$BOOKMARKS"
-eq 'import html reports its counts' \
-    "$($BM --import "$here/fixtures/netscape.html")" 'imported 3, skipped 1 duplicates'
-eq 'import html appends, keeps entities decoded and folders as tags' \
-    "$(cat "$BOOKMARKS")" "$(printf '%s\n' \
-        "https://old.example${TAB}Kept${TAB}org" \
+eq 'bm-import html prints rows: entities decoded, folders as tags, web urls only' \
+    "$($IMPORT "$here/fixtures/netscape.html")" "$(printf '%s\n' \
         "https://top.example/${TAB}Top level${TAB}" \
         "https://git.example/?a=1&b=2${TAB}Git & friends${TAB}dev-tools" \
-        "https://sh.example/posix${TAB}POSIX sh${TAB}dev-tools shell")"
-eq 'import teaches the folder tags' "$(grep -c -e '^dev-tools | $' -e '^shell | $' "$USERTAGS")" '2'
-eq 'importing twice adds nothing' \
-    "$($BM --import "$here/fixtures/netscape.html")" 'imported 0, skipped 4 duplicates'
-$BM --import "$work/nosuchfile" 2>/dev/null
-eq 'import of a missing file fails' "$?" '1'
+        "https://sh.example/posix${TAB}POSIX sh${TAB}dev-tools shell" \
+        "http://www.top.example${TAB}Top level again${TAB}")"
+eq 'bm-import leaves the bookmark file alone' "$(grep -c . "$BOOKMARKS")" '1'
+eq 'merge reports its counts' \
+    "$($IMPORT "$here/fixtures/netscape.html" | $BM --merge)" 'added 3, skipped 1 duplicates'
+eq 'merge appends only what is new' "$(cut -f1 "$BOOKMARKS" | paste -sd ' ' -)" \
+    'https://old.example https://top.example/ https://git.example/?a=1&b=2 https://sh.example/posix'
+eq 'merge teaches the tags' "$(grep -c -e '^dev-tools | $' -e '^shell | $' "$USERTAGS")" '2'
+eq 'merging twice adds nothing' \
+    "$($IMPORT "$here/fixtures/netscape.html" | $BM -m)" 'added 0, skipped 4 duplicates'
+eq 'merge takes a bare list of urls' \
+    "$(printf 'https://bare.example\n\n# note\n' | $BM -m; tail -n 1 "$BOOKMARKS")" \
+    "$(printf 'added 1, skipped 0 duplicates\nhttps://bare.example\t\t')"
+$IMPORT "$work/nosuchfile" 2>/dev/null
+eq 'bm-import fails on a missing file' "$?" '1'
+$IMPORT 2>/dev/null
+eq 'bm-import wants one source' "$?" '2'
 
 if command -v jq >/dev/null 2>&1; then
-    reset
-    eq 'import json reports its counts' \
-        "$($BM --import "$here/fixtures/chromium.json")" 'imported 3, skipped 1 duplicates'
-    eq 'import json skips the trash and non-web urls, tags by folder' \
-        "$(cat "$BOOKMARKS")" "$(printf '%s\n' \
+    eq 'bm-import json skips the trash and non-web urls, tags by folder' \
+        "$($IMPORT "$here/fixtures/chromium.json")" "$(printf '%s\n' \
             "https://bar.example/${TAB}Bar site${TAB}" \
             "https://blog.example/feed${TAB}A blog${TAB}news-blogs" \
-            "https://deep.example/${TAB}Deep${TAB}news-blogs tech")"
+            "https://deep.example/${TAB}Deep${TAB}news-blogs tech" \
+            "http://www.bar.example${TAB}Bar dupe${TAB}")"
 else
-    printf 'skip import json: no jq\n'
+    printf 'skip bm-import json: no jq\n'
 fi
 cp "$here/../usertags" "$USERTAGS"
 
-# ---- check ----
+# ---- bm-check ----
+
 
 reset
 printf '%s\n' \
@@ -466,19 +466,23 @@ printf '%s\n' \
     "https://moved.example${TAB}Moved${TAB}" \
     "https://nohead.example${TAB}Refuses HEAD${TAB}" \
     "https://gone.example${TAB}No answer${TAB}" > "$BOOKMARKS"
-out=$(PATH="$work/net:$PATH" $BM --check | sort)
-rc=$?
-eq 'check lists dead and moved links only' "$out" "$(printf '%s\n' \
+out=$(PATH="$work/net:$PATH" $CHECK "$BOOKMARKS" | sort)
+eq 'bm-check lists dead and moved links only' "$out" "$(printf '%s\n' \
     "000${TAB}https://gone.example" \
     "301${TAB}https://moved.example${TAB}https://new.example/" \
     "404${TAB}https://dead.example")"
-PATH="$work/net:$PATH" $BM --check >/dev/null
-eq 'check exits 1 when something is wrong' "$?" '1'
-printf '%s\n' "https://ok.example${TAB}Fine${TAB}" > "$BOOKMARKS"
-eq 'check is quiet about healthy links' "$(PATH="$work/net:$PATH" $BM --check; echo $?)" \
-    "$(printf 'all links ok\n0')"
+PATH="$work/net:$PATH" $CHECK "$BOOKMARKS" >/dev/null
+eq 'bm-check exits 1 when something is wrong' "$?" '1'
+eq 'bm-check is a filter' \
+    "$($BM -l | PATH="$work/net:$PATH" $CHECK - | cut -f2 | sort | paste -sd ' ' -)" \
+    'https://dead.example https://gone.example https://moved.example'
+eq 'bm-check takes a plain list of urls' \
+    "$(printf 'https://dead.example\nhttps://ok.example\n' | PATH="$work/net:$PATH" $CHECK -)" \
+    "404${TAB}https://dead.example"
+eq 'bm-check says nothing about healthy links' \
+    "$(printf 'https://ok.example\n' | PATH="$work/net:$PATH" $CHECK -; echo $?)" '0'
 
-# ---- git ----
+# ---- bm-commit ----
 
 if command -v git >/dev/null 2>&1; then
     export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null
@@ -487,6 +491,8 @@ if command -v git >/dev/null 2>&1; then
     git init -q "$repo"
     mkdir "$repo/nested"
     commits () { git -C "$repo" rev-list --count HEAD 2>/dev/null || echo 0; }
+    PATH_WAS=$PATH
+    PATH="$top:$PATH"
 
     (
         BOOKMARKS="$repo/bookmarks" USERTAGS="$repo/usertags"
@@ -523,6 +529,13 @@ if command -v git >/dev/null 2>&1; then
         SBM_GIT=0 $BM -a https://git4.example 2>/dev/null
     )
     eq 'SBM_GIT=0 never commits' "$(commits)" '3'
+    PATH=$PATH_WAS
+    (
+        BOOKMARKS="$repo/bookmarks"
+        answers 'Not installed' 'code'
+        $BM -a https://git5.example 2>/dev/null
+    )
+    eq 'without bm-commit on PATH bm does not touch git' "$(commits)" '3'
 else
     printf 'skip git: no git\n'
 fi
@@ -577,14 +590,29 @@ printf 'https://added.example\nAdded here\n' | fz 2>/dev/null
 eq 'browse: ctrl-a adds, fzf tag picker creates typed tags' \
     "$(grep added.example "$BOOKMARKS")" "https://added.example${TAB}Added here${TAB}code fresh"
 
-answers 'ctrl-a:' '' 'enter:Mid'
-printf 'https://a.example\n\n' | fz 2>/dev/null
-eq 'browse: a refused duplicate returns to the list' "$(cat "$work/opened")" 'https://a.example'
+answers 'ctrl-a:' 'enter:Mid'
+out=$(printf 'https://a.example\n\n' | fz 2>&1)
+eq 'browse: a refused duplicate is shown, then the list comes back' \
+    "$(printf '%s\n' "$out" | grep -c 'already bookmarked; press ENTER') $(cat "$work/opened")" \
+    '1 https://a.example'
+
+rm -f "$work/opened"
+answers 'enter:posix sh printf'
+fz </dev/null
+eq 'browse: text that matches nothing is searched for on the web' \
+    "$(cat "$work/opened")" 'https://duckduckgo.com/?q=posix+sh+printf'
+
+: > "$SBM_TEST_LOG"
+answers 'ctrl-s:' ''
+fz </dev/null
+eq 'browse: the preview follows the cursor' \
+    "$(grep -c -e "--preview=printf '%s.n%s.ntags: %s.nused: %s.n' {1} {2} {3} {4}" "$SBM_TEST_LOG")" '2'
 
 : > "$SBM_TEST_LOG"
 answers 'Mid'
 fz -c </dev/null
-eq 'fzf: pickers hide the raw url column' "$(grep -c -e '--with-nth=2..' "$SBM_TEST_LOG")" '1'
+eq 'fzf: rows are listed by their display column, with a live preview' \
+    "$(grep -c -e "--with-nth=5.. --preview-window=down:5:wrap --preview=printf '%s" "$SBM_TEST_LOG")" '1'
 : > "$SBM_TEST_LOG"
 answers 'Mid'
 SBM_FZF_OPTS='--height=100%' fz -c </dev/null
@@ -600,10 +628,11 @@ dm () {
 
 seed
 : > "$SBM_TEST_LOG"
-answers 'copy' 'Zed'
+answers 'Zed' 'copy'
 dm
-eq 'dmenu: no arguments asks for the action, then the bookmark' \
+eq 'dmenu: no arguments asks for the bookmark, then what to do' \
     "$(cat "$work/clipboard")" 'https://b.example'
+eq 'dmenu: the two menus' "$(sed 's/.* -p //' "$SBM_TEST_LOG" | paste -sd ' ' -)" 'bookmark: do:'
 eq 'dmenu: is called with its usual flags' "$(sed 's/ -p .*//' "$SBM_TEST_LOG" | sort -u)" \
     'dmenu -i -l 15'
 eq 'dmenu: DMENULINES is honoured' \
@@ -641,13 +670,13 @@ cp "$here/../usertags" "$USERTAGS"
 seed
 both="$work/bin:$work/fzfbin"
 : > "$SBM_TEST_LOG"
-answers 'copy' 'Zed'
+answers 'Zed' 'copy'
 ( unset SBM_MENU WAYLAND_DISPLAY; PATH="$both:$PATH" DISPLAY=:0 $BM </dev/null )
 eq 'a display means dmenu even when fzf exists' \
     "$(cut -d' ' -f1 "$SBM_TEST_LOG" | sort -u)" 'dmenu'
 
 : > "$SBM_TEST_LOG"
-answers 'copy' 'Zed'
+answers 'Zed' 'copy'
 ( unset SBM_MENU DISPLAY; PATH="$both:$PATH" WAYLAND_DISPLAY=wayland-0 $BM </dev/null )
 eq 'Wayland means dmenu too' "$(cut -d' ' -f1 "$SBM_TEST_LOG" | sort -u)" 'dmenu'
 
@@ -657,6 +686,150 @@ answers 'enter:Zed'
 eq 'no display falls back to fzf' "$(cut -d' ' -f1 "$SBM_TEST_LOG" | sort -u)" 'fzf'
 
 unset SBM_TEST_LOG
+
+# ---- one-screen browsing without key bindings (dmenu, custom menus) ----
+
+seed
+export SBM_TEST_SEEN="$work/seen"
+
+answers 'Zed' 'open'
+$BM
+eq 'browse: pick, then open' "$(cat "$work/opened")" 'https://b.example'
+
+: > "$SBM_TEST_SEEN"
+answers 'Zed' 'copy'
+$BM
+eq 'browse: the second menu shows the bookmark in full, below the actions' \
+    "$(sed -n '/^--- pick do:/,$p' "$SBM_TEST_SEEN" | sed 1d | paste -sd '|' -)" \
+    'open|copy|edit|delete|  https://b.example|  Zed|  tags: code lib|  used: 1'
+eq 'browse: the list starts with [add] and hides the use counts' \
+    "$(sed -n '2,3p' "$SBM_TEST_SEEN" | paste -sd '|' -)" \
+    "[add]|https://b.example${TAB}Zed${TAB}code lib"
+
+rm -f "$work/opened"
+answers 'Zed' '' 'Mid' 'open'
+$BM
+eq 'browse: closing the second menu goes back to the list' \
+    "$(cat "$work/opened")" 'https://a.example'
+
+answers 'Zed' '  tags: code lib' 'Mid' 'open'
+$BM
+eq 'browse: picking a detail line does nothing' "$(cat "$work/opened")" 'https://a.example'
+
+answers 'Alpha' 'delete' ''
+$BM
+eq 'browse: delete comes back to the list, closing the list leaves' \
+    "$? $(cut -f1 "$BOOKMARKS" | paste -sd ' ' -)" '1 https://b.example https://a.example'
+
+answers '[add]' 'https://viamenu.example' 'Via menu' 'code' ''
+$BM 2>/dev/null
+eq 'browse: [add] adds and comes back' "$(grep -c "^https://viamenu.example${TAB}Via menu${TAB}code$" "$BOOKMARKS")" '1'
+
+: > "$SBM_TEST_SEEN"
+answers '[add]' 'https://www.a.example/' 'seen' ''
+$BM 2>/dev/null
+eq 'browse: a refused duplicate is announced in a menu' \
+    "$(grep -c '^--- ask already bookmarked; press ENTER' "$SBM_TEST_SEEN")" '1'
+
+: > "$SBM_TEST_SEEN"
+answers '[add]' '' ''
+$BM 2>/dev/null
+eq 'browse: a cancelled add just comes back' \
+    "$(grep -c 'already bookmarked' "$SBM_TEST_SEEN") $(grep -c '^--- pick bookmark:' "$SBM_TEST_SEEN")" '0 2'
+unset SBM_TEST_SEEN
+
+# ---- web search from the bookmark menu ----
+
+seed
+rm -f "$work/opened" "$BOOKMARKS.usage"
+printf '%s\n' 'w   | https://en.wikipedia.org/w/index.php?search=%s' \
+              'gh | https://github.com/search?q=%s&type=repositories' > "$work/engines"
+export SBM_ENGINES="$work/engines"
+
+# went <typed text> [bm arguments]: where typing that into the menu leads.
+went () {
+    typed=$1
+    shift
+    rm -f "$work/opened"
+    answers "$typed"
+    $BM "$@" 2>/dev/null
+    cat "$work/opened" 2>/dev/null
+}
+
+eq 'open: a bookmark is opened' "$(went Zed -o)" 'https://b.example'
+eq 'open: other words are searched for' "$(went 'posix sh printf' -o)" \
+    'https://duckduckgo.com/?q=posix+sh+printf'
+eq 'open: the query is url-encoded, byte by byte' "$(went 'c++ & más?' -o)" \
+    'https://duckduckgo.com/?q=c%2B%2B+%26+m%C3%A1s%3F'
+eq 'open: one word is searched for too' "$(went suckless -o)" \
+    'https://duckduckgo.com/?q=suckless'
+eq 'open: something with a dot is an address' "$(went 'example.org/a?b=c' -o)" \
+    'https://example.org/a?b=c'
+eq 'open: a url is opened as it is' "$(went 'ftp://files.example/x' -o)" 'ftp://files.example/x'
+eq 'open: an engine keyword picks the engine' "$(went 'w dynamic menu' -o)" \
+    'https://en.wikipedia.org/w/index.php?search=dynamic+menu'
+eq 'open: an engine url may go on after the query' "$(went 'gh dmenu' -o)" \
+    'https://github.com/search?q=dmenu&type=repositories'
+eq 'open: a keyword alone is just a word' "$(went w -o)" 'https://duckduckgo.com/?q=w'
+eq 'open: an unknown keyword is part of the query' "$(went 'zz top' -o)" \
+    'https://duckduckgo.com/?q=zz+top'
+eq 'open: SBM_SEARCH sets the default engine' \
+    "$(SBM_SEARCH='https://search.example/?s=%s' went 'two words' -o)" \
+    'https://search.example/?s=two+words'
+eq 'open: works without an engines file' "$(SBM_ENGINES="$work/none" went 'w dynamic menu' -o)" \
+    'https://duckduckgo.com/?q=w+dynamic+menu'
+eq 'browse: typed text is searched for as well' "$(went 'w dmenu')" \
+    'https://en.wikipedia.org/w/index.php?search=dmenu'
+eq 'only bookmarks are counted as used' "$(cut -f1 "$BOOKMARKS.usage")" 'https://b.example'
+went '' -o >/dev/null
+eq 'open: closing the menu exits 1' "$?" '1'
+unset SBM_ENGINES
+
+# ---- bm-html ----
+
+reset
+printf '%s\n' \
+    "https://b.example/?a=1&b=2${TAB}B <b>bold</b> & \"quoted\"${TAB}code lib" \
+    "https://a.example${TAB}${TAB}" \
+    '# a comment' \
+    "javascript:alert(1)${TAB}Bookmarklet${TAB}code" \
+    "https://c.example/x${TAB}see${TAB}code" > "$BOOKMARKS"
+page=$($HTML -t 'My <marks>' "$BOOKMARKS")
+eq 'bm-html lists a bookmark under each of its tags, and the untagged' \
+    "$(printf '%s\n' "$page" | grep -c '^<li>') $(printf '%s\n' "$page" | grep '<h2' | sed 's/.*id="\([^"]*\)".*/\1/' | paste -sd ' ' -)" \
+    '4 code lib untagged'
+eq 'bm-html escapes text and attributes' \
+    "$(printf '%s\n' "$page" | grep -c '<li><a href="https://b.example/?a=1&amp;b=2">B &lt;b&gt;bold&lt;/b&gt; &amp; &quot;quoted&quot;</a> <small>b.example</small>')" '2'
+eq 'bm-html escapes the title' "$(printf '%s\n' "$page" | grep -c '<title>My &lt;marks&gt;</title>')" '1'
+eq 'bm-html never links to script' "$(printf '%s\n' "$page" | grep -ci 'javascript:')" '0'
+eq 'bm-html shows the url when there is no description' \
+    "$(printf '%s\n' "$page" | grep -c '<a href="https://a.example">https://a.example</a>')" '1'
+eq 'bm-html sorts by description within a tag' \
+    "$(printf '%s\n' "$page" | sed -n '/id="code"/,/<\/ul>/p' | grep -c .) $(printf '%s\n' "$page" | sed -n '/id="code"/,/<\/ul>/p' | sed -n 3p | grep -c 'B &lt;b')" '5 1'
+eq 'bm-html has one inline script, a filter box hidden without it, and ?q=' \
+    "$(printf '%s\n' "$page" | grep -c '<script>') $(printf '%s\n' "$page" | grep -c '<input id=q type=search placeholder="filter 3 bookmarks" hidden>') $(printf '%s\n' "$page" | grep -c 'URLSearchParams(location.search).get("q")')" \
+    '1 1 1'
+eq 'bm-html loads nothing from elsewhere' "$(printf '%s\n' "$page" | grep -c -e ' src=' -e '<link' -e '@import')" '0'
+eq 'bm-html is a filter' "$($BM -t lib -l | $HTML - | grep -c '^<li>')" '2'
+eq 'bm-html reads the bookmark file by default, whatever stdin is' \
+    "$($HTML </dev/null | grep -c '^<li>')" '4'
+eq 'bm-check reads the bookmark file by default too' \
+    "$(PATH="$work/net:$PATH" $CHECK </dev/null; echo $?)" '0'
+$HTML --bogus 2>/dev/null </dev/null
+eq 'bm-html rejects unknown options' "$?" '2'
+if command -v node >/dev/null 2>&1; then
+    printf '%s\n' "$page" | sed -n '/<script>/,/<\/script>/p' | sed '1d;$d' > "$work/page.js"
+    node --check "$work/page.js" 2>/dev/null
+    eq 'bm-html: the script parses' "$?" '0'
+fi
+
+# ---- make install ----
+
+if command -v make >/dev/null 2>&1; then
+    make -s -C "$top" install DESTDIR="$work/dest" PREFIX=/usr TOOLS='bm bm-html' >/dev/null
+    eq 'make install installs what TOOLS names, and only that' \
+        "$(cd "$work/dest/usr/bin" && for f in *; do [ -x "$f" ] && printf '%s ' "$f"; done)" 'bm bm-html '
+fi
 
 # ---- defaults ----
 

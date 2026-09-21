@@ -1,13 +1,17 @@
 #!/bin/sh
 
 # Scripted stand-in for fzf, installed as "fzf" on the test PATH. Consumes one
-# line of $SBM_TEST_ANSWERS per call, like test/fakemenu:
+# line of $SBM_TEST_ANSWERS per call, like test/fakemenu. What it prints
+# depends on the options it was given, as with the real thing:
 #
-#   with --expect       key:text    prints the key, then the first row
-#                                   containing text ("enter" is the empty key)
-#   with --print-query  query:words prints the query, then the choices starting
-#                                   with each word
-#   otherwise           text        prints the first row containing text
+#   --expect             answer key:text   the typed text, the key ("enter"
+#                                          is the empty key), then the first
+#                                          row containing text, if any
+#   --multi              answer text:words the typed text, then the choices
+#                                          that start with each word
+#   --print-query alone  answer text       the typed text, then the first row
+#                                          containing it, if any
+#   none of these        answer text       the first row containing text
 #
 # An empty answer is ESC: no output, exit 130.
 
@@ -16,8 +20,9 @@
 mode=pick
 for arg in "$@"; do
     case $arg in
+        --print-query) [ "$mode" = pick ] && mode=query ;;
+        --multi)       [ "$mode" = expect ] || mode=multi ;;
         --expect=*)    mode=expect ;;
-        --print-query) mode=query ;;
     esac
 done
 
@@ -37,14 +42,18 @@ case $mode in
     expect)
         key=${answer%%:*}
         [ "$key" = enter ] && key=
-        printf '%s\n' "$key"
+        printf '%s\n%s\n' "${answer#*:}" "$key"
         row "${answer#*:}"
         ;;
-    query)
+    multi)
         printf '%s\n' "${answer%%:*}"
         for word in ${answer#*:}; do
             printf '%s\n' "$choices" | grep -- "^$word " | head -n 1
         done
+        ;;
+    query)
+        printf '%s\n' "$answer"
+        row "$answer"
         ;;
     *)
         row "$answer"
