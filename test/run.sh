@@ -32,6 +32,9 @@ export SBM_OPEN="$work/open"
 export XDG_DATA_HOME="$work/xdg"
 # Nothing here may touch the network or the user's git setup.
 export SBM_FETCH=0
+# bm starts bm-sync after each change when it is installed. This config is
+# empty, so bm-sync cannot reach the account of the user.
+export SBM_SYNC_CONFIG="$work/sync.conf"
 
 cp "$here/../usertags" "$USERTAGS"
 
@@ -998,7 +1001,7 @@ fi
 printf 200
 FAKE
 chmod +x "$work/syncnet/curl"
-export SBM_TEST_SRV="$srv" SBM_SYNC_CONFIG="$work/sync.conf"
+export SBM_TEST_SRV="$srv"
 bmsync () {
     PATH="$work/syncnet:$PATH" ${SBM_SH:-sh} "$top/bm-sync" "$@"
 }
@@ -1072,7 +1075,25 @@ bmsync -q logout
 eq 'bm-sync logout forgets the token and signs out on the server' \
     "$([ -e "$SBM_SYNC_CONFIG" ] || echo gone) $(cat "$srv/log")" 'gone logout'
 eq 'bm-sync leaves no lock behind' "$(ls -d "$BOOKMARKS.sync.lock" 2>/dev/null)" ''
-unset SBM_TEST_SRV SBM_SYNC_CONFIG
+unset SBM_TEST_SRV
+
+# bm starts bm-sync after each change. A stand-in bm-sync records the config
+# that it gets: it must be the one of the tests, never that of the user.
+mkdir "$work/stubsync"
+# shellcheck disable=SC2016
+printf '#!/bin/sh\nprintf "%%s\\n" "$SBM_SYNC_CONFIG" >> "%s"\n' "$work/stubsync.log" \
+    > "$work/stubsync/bm-sync"
+chmod +x "$work/stubsync/bm-sync"
+reset
+answers 'Stub' ''
+PATH="$work/stubsync:$PATH" $BM -a https://stub.example 2>/dev/null
+i=0
+while [ ! -s "$work/stubsync.log" ] && [ $i -lt 5 ]; do
+    sleep 1
+    i=$((i + 1))
+done
+eq 'bm starts bm-sync with the config of the tests, never the real one' \
+    "$(sort -u "$work/stubsync.log")" "$work/sync.conf"
 
 # ---- make install ----
 
