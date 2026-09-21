@@ -264,9 +264,10 @@ under another shell with SBM_SH=dash sh test/run.sh. They script dmenu, fzf
 and curl, so they need no display and no network.
 
 == Releases ==
-Push a tag vVERSION, with VERSION from config.mk. GitHub Actions then runs
-make check on Linux and macOS, and makes the installer and the image. It
-makes a release with them and with the tarball of make dist.
+Set VERSION in config.mk. Tag the release as vVERSION. make dist makes the
+tarball. contrib/windows/build-installer.sh makes the Windows installer. On
+a Mac, contrib/macos/build-dmg.sh makes the image. Attach the three files to
+the GitHub release of the tag.
 
 == Credits ==
 Some ideas taken from Karl Voit:
