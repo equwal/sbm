@@ -14,7 +14,7 @@ dist:
 
 install:
 	@echo installing scripts to ${DESTDIR}${PREFIX}/bin
-	@mkdir -p ${DESTDIR}${PREFIX}
+	@mkdir -p ${DESTDIR}${PREFIX}/bin
 	@cp bm ${DESTDIR}${PREFIX}/bin
 	@chmod 755 ${DESTDIR}${PREFIX}/bin/bm
 
