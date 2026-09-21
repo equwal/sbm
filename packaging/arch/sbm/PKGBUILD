@@ -1,0 +1,59 @@
+# Maintainer: Spenser Truex <truex@equwal.com>
+
+pkgname=sbm
+pkgver=0.3
+pkgrel=1
+pkgdesc='Bookmark manager made of POSIX sh scripts, driven by dmenu or fzf'
+arch=('any')
+url='https://github.com/equwal/sbm'
+# Upstream has not chosen a licence yet and ships no LICENSE file. Replace
+# SBM_LICENSE_TBD with the SPDX identifier, and add the usual
+#   install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+# to package() if the licence is not one of /usr/share/licenses/common.
+# namcap reports the token as an unknown licence, which is intended.
+license=('SBM_LICENSE_TBD')
+# makepkg has no "a or b" operator, so the hard dependencies below name the
+# usual choice and the alternatives are listed in optdepends:
+#   menu       dmenu  or fzf
+#   clipboard  xclip  or xsel or wl-clipboard
+# sh (bash) and awk (gawk) are members of the base group and are not listed.
+depends=('dmenu' 'xclip')
+makedepends=('make')
+checkdepends=('shellcheck')
+optdepends=('fzf: menu on a bare terminal, and an alternative to dmenu'
+            'xsel: clipboard, instead of xclip'
+            'wl-clipboard: clipboard under Wayland, instead of xclip'
+            'curl: page titles for bm --add (bm-title) and dead-link checks (bm-check)'
+            'jq: importing Chromium bookmark files with bm-import'
+            'git: bookmark file history with bm-commit'
+            'xdg-utils: opening URLs with xdg-open')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# No release tag exists yet, so there is nothing to hash. Replace
+# SBM_SHA256_TBD with the output of: makepkg -g
+sha256sums=('SBM_SHA256_TBD')
+
+build() {
+  # Nothing is compiled; the package is a set of sh scripts.
+  :
+}
+
+check() {
+  cd "$pkgname-$pkgver"
+  # make check runs shellcheck -s sh over every script, then the test suite.
+  # The suite scripts the menu, the clipboard and curl: no display, no network.
+  make check
+}
+
+package() {
+  cd "$pkgname-$pkgver"
+  make DESTDIR="$pkgdir" PREFIX=/usr install
+
+  install -Dm644 README -t "$pkgdir/usr/share/doc/$pkgname"
+  install -Dm644 TODO -t "$pkgdir/usr/share/doc/$pkgname"
+  install -Dm644 usertags engines -t "$pkgdir/usr/share/doc/$pkgname/examples"
+}
+
+# Before uploading to the AUR, regenerate the metadata:
+#   makepkg --printsrcinfo > .SRCINFO
+# and commit PKGBUILD and .SRCINFO together. Check the result with
+#   namcap PKGBUILD && namcap sbm-0.3-1-any.pkg.tar.zst

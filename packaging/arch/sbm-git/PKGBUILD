@@ -1,0 +1,67 @@
+# Maintainer: Spenser Truex <truex@equwal.com>
+
+# This is the package that works today: upstream has no release tag yet, so
+# sbm (the versioned package) has nothing to download.
+
+pkgname=sbm-git
+_pkgname=sbm
+pkgver=0.3.r0.gUNKNOWN
+pkgrel=1
+pkgdesc='Bookmark manager made of POSIX sh scripts, driven by dmenu or fzf (git)'
+arch=('any')
+url='https://github.com/equwal/sbm'
+# See the comment in ../sbm/PKGBUILD: no licence has been chosen upstream yet.
+license=('SBM_LICENSE_TBD')
+# makepkg has no "a or b" operator; see ../sbm/PKGBUILD.
+depends=('dmenu' 'xclip')
+makedepends=('git' 'make')
+checkdepends=('shellcheck')
+optdepends=('fzf: menu on a bare terminal, and an alternative to dmenu'
+            'xsel: clipboard, instead of xclip'
+            'wl-clipboard: clipboard under Wayland, instead of xclip'
+            'curl: page titles for bm --add (bm-title) and dead-link checks (bm-check)'
+            'jq: importing Chromium bookmark files with bm-import'
+            'git: bookmark file history with bm-commit'
+            'xdg-utils: opening URLs with xdg-open')
+provides=("$_pkgname=$pkgver")
+conflicts=("$_pkgname")
+source=("$_pkgname::git+$url.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd "$_pkgname"
+  # There are no tags yet, so git describe has nothing to work from. Fall
+  # back to the version in config.mk plus the commit count. Once v0.3 is
+  # tagged the first branch takes over on its own.
+  # The exit status of a pipeline is sed's, which always succeeds: ask git
+  # first, and only then format.
+  if git describe --long --tags >/dev/null 2>&1; then
+    git describe --long --tags | sed 's/^v//; s/\([^-]*-g\)/r/; s/-/./g'
+  else
+    printf '%s.r%s.g%s'       "$(sed -n 's/^VERSION=//p' config.mk)"       "$(git rev-list --count HEAD)"       "$(git rev-parse --short HEAD)"
+  fi
+}
+
+build() {
+  # Nothing is compiled; the package is a set of sh scripts.
+  :
+}
+
+check() {
+  cd "$_pkgname"
+  make check
+}
+
+package() {
+  cd "$_pkgname"
+  make DESTDIR="$pkgdir" PREFIX=/usr install
+
+  install -Dm644 README -t "$pkgdir/usr/share/doc/$_pkgname"
+  install -Dm644 TODO -t "$pkgdir/usr/share/doc/$_pkgname"
+  install -Dm644 usertags engines -t "$pkgdir/usr/share/doc/$_pkgname/examples"
+}
+
+# Before uploading to the AUR:
+#   makepkg --printsrcinfo > .SRCINFO
+# A -git package's .SRCINFO records the pkgver produced by the last local
+# build, so regenerate it after building.

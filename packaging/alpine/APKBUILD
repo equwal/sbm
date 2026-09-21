@@ -1,0 +1,55 @@
+# Contributor: Spenser Truex <truex@equwal.com>
+# Maintainer: Spenser Truex <truex@equwal.com>
+pkgname=sbm
+pkgver=0.3
+pkgrel=0
+pkgdesc="Bookmark manager made of POSIX sh scripts, driven by fzf"
+url="https://github.com/equwal/sbm"
+arch="noarch"
+# Upstream has not chosen a licence yet and ships no LICENSE file. Replace
+# SBM_LICENSE_TBD with the SPDX identifier, and add
+#   install -Dm644 LICENSE "$pkgdir"/usr/share/licenses/$pkgname/LICENSE
+# to package(). abuild's licence check rejects the token, which is intended.
+license="SBM_LICENSE_TBD"
+# abuild has no "a or b" operator. A menu is required; fzf is in community and
+# works without a display, so it is the hard dependency. dmenu is in the
+# aports tree too: install it instead if you run X11.
+# sh and awk come from busybox, which is always installed.
+depends="fzf"
+makedepends="make"
+checkdepends="shellcheck"
+subpackages="$pkgname-doc"
+source="$pkgname-$pkgver.tar.gz::https://github.com/equwal/sbm/archive/refs/tags/v$pkgver.tar.gz"
+
+build() {
+	# Nothing is compiled; the package is a set of sh scripts.
+	:
+}
+
+check() {
+	# make check runs shellcheck -s sh over every script, then the test
+	# suite. The suite scripts the menu, the clipboard and curl: no display,
+	# no network.
+	make check
+}
+
+package() {
+	make DESTDIR="$pkgdir" PREFIX=/usr install
+
+	install -Dm644 README -t "$pkgdir"/usr/share/doc/$pkgname/
+	install -Dm644 TODO -t "$pkgdir"/usr/share/doc/$pkgname/
+	install -Dm644 usertags engines \
+		-t "$pkgdir"/usr/share/doc/$pkgname/examples/
+}
+
+# Optional at runtime, none of them pulled in:
+#   curl       bm-title, bm-check
+#   jq         bm-import of Chromium JSON bookmark files
+#   git        bm-commit
+#   xclip      clipboard under X11 (or xsel, or wl-clipboard under Wayland)
+#   xdg-utils  opening URLs with xdg-open
+
+# Alpine hashes sources with sha512, not sha256. No release tag exists yet,
+# so there is nothing to hash: replace SBM_SHA512_TBD by running
+#   abuild checksum
+sha512sums="SBM_SHA512_TBD  sbm-0.3.tar.gz"

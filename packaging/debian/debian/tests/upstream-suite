@@ -1,0 +1,8 @@
+#!/bin/sh
+# Run upstream's own test suite against the source tree autopkgtest copied
+# into the testbed. It scripts the menu, the clipboard and curl, so it needs
+# no display and no network.
+set -e
+
+cd "$(dirname "$0")/../.."
+sh test/run.sh

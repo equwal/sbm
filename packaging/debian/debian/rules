@@ -1,0 +1,19 @@
+#!/usr/bin/make -f
+# Nothing here is compiled, so there is no build step and no hardening to do.
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	# The upstream "all" target only prints a reminder; there is nothing
+	# to build.
+
+# dh_auto_test finds the "check" target on its own, since there is no
+# "test" target. It runs shellcheck -s sh over every script and then the
+# test suite, which scripts the menu, the clipboard and curl: no display,
+# no network. The override is here only to carry this comment.
+override_dh_auto_test:
+	dh_auto_test
+
+override_dh_auto_install:
+	dh_auto_install -- PREFIX=/usr

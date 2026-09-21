@@ -1,0 +1,8 @@
+sbm (0.3-1) UNRELEASED; urgency=medium
+
+  * Initial packaging.
+  * No ITP bug has been filed yet, so there is no Closes entry.  File one
+    against wnpp and add "Closes: #NNNNNN" here before uploading, and change
+    UNRELEASED to unstable.
+
+ -- Spenser Truex <truex@equwal.com>  Sun, 20 Sep 2026 21:36:41 -0700

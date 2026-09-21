@@ -1,0 +1,9 @@
+# smoke uses the installed programs; upstream-suite runs the source tree's
+# own tests, which exercise the same scripts before they are installed.
+Tests: smoke
+Depends: @
+Restrictions: allow-stderr
+
+Tests: upstream-suite
+Depends: @, make
+Restrictions: allow-stderr

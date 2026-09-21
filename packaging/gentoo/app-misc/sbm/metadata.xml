@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE pkgmetadata SYSTEM "https://www.gentoo.org/dtd/metadata.dtd">
+<pkgmetadata>
+	<maintainer type="person" proxied="yes">
+		<email>truex@equwal.com</email>
+		<name>Spenser Truex</name>
+	</maintainer>
+	<maintainer type="project" proxied="proxy">
+		<email>proxy-maint@gentoo.org</email>
+		<name>Proxy Maintainers</name>
+	</maintainer>
+	<longdescription lang="en">
+		sbm keeps bookmarks in one tab separated file: URL, description,
+		tags. bm picks a bookmark with dmenu, or with fzf on a bare
+		terminal, and opens it, copies it, edits it or deletes it. Text
+		that is no bookmark is opened as an address or searched for on
+		the web.
+
+		The rest are small filters that read and write bookmark lines:
+		bm-import reads a browser's bookmarks, bm-check reports dead
+		links, bm-html writes a searchable web page, bm-migrate converts
+		the old file format, bm-title fetches a page title and bm-commit
+		keeps the file's history in git.
+
+		Everything is POSIX sh and POSIX utilities. Nothing is compiled.
+	</longdescription>
+	<!--
+		No <use> block: X and wayland are global USE flags, and pkgcheck
+		reports a local description that duplicates a global one.
+	-->
+	<upstream>
+		<maintainer status="active">
+			<email>truex@equwal.com</email>
+			<name>Spenser Truex</name>
+		</maintainer>
+		<bugs-to>https://github.com/equwal/sbm/issues</bugs-to>
+		<remote-id type="github">equwal/sbm</remote-id>
+	</upstream>
+</pkgmetadata>
