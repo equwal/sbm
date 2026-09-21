@@ -144,10 +144,19 @@ Printing nothing means the user cancelled. test/fakemenu is a small example.
 == Migrating from the old format ==
 Earlier versions wrote "URL description | tag tag". Convert such a file with
 
-    bm --migrate
+    bm-migrate                  # $BOOKMARKS, or the default file
+    bm-migrate path/to/file     # any other file
+    bm-migrate -n file          # only show what it would become
+    bm-migrate - < old > new    # as a filter
 
-The original is kept next to it with a .bak suffix, and lines that are
-already tab separated are left alone.
+bm-migrate is a standalone script: it needs sh and awk, not bm. "bm --migrate"
+does the same to the file bm is using.
+
+The URL is the first word of a line, the tags are what follows the last
+" | ", and a line without one has no tags. Comments, blank lines and lines
+that are already tab separated are left alone, so converting twice changes
+nothing. The original is kept next to the file as .bak; an existing .bak is
+never overwritten (.bak.1, .bak.2 and so on are used instead).
 
 == Tests ==
     make check

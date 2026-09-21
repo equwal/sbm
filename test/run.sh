@@ -209,6 +209,90 @@ eq 'migrate leaves a backup' "$(grep -c . "$BOOKMARKS.bak")" '4'
 $BM --migrate >/dev/null
 eq 'migrate is idempotent' "$(cat "$BOOKMARKS")" "$expected"
 eq 'no warning after migrating' "$($BM -l 2>&1 >/dev/null)" ''
+# backups: how many backups sit beside the bookmark file.
+backups () {
+    set -- "$BOOKMARKS".bak*
+    if [ -e "$1" ]; then echo $#; else echo 0; fi
+}
+eq 'migrating again leaves the backup of the original alone' \
+    "$(grep -c ' | ' "$BOOKMARKS.bak") $(backups)" '2 1'
+
+printf '%s\n' 'https://late.example Added by hand | org' >> "$BOOKMARKS"
+$BM --migrate >/dev/null
+eq 'a later migration backs up beside the first, not over it' \
+    "$(grep -c ' | ' "$BOOKMARKS.bak") $(grep -c 'late.example' "$BOOKMARKS.bak.1")" '2 1'
+
+# ---- bm-migrate, the standalone script ----
+
+MIGRATE="${SBM_SH:-sh} $here/../bm-migrate"
+old_file () {
+    rm -f "$BOOKMARKS".bak*
+    printf '%s\n' \
+        '# my bookmarks' \
+        '' \
+        'https://old.example Old style | code sec' \
+        'https://equwal.com  Spenser Truex'"'"'s website.' \
+        'https://pipe.example a | b | lib' \
+        '  https://indented.example   spaced   out  |  org  ' \
+        'https://bare.example' \
+        'https://100.example 100%s done \n | lib' \
+        "https://new.example${TAB}Already TSV${TAB}org" > "$BOOKMARKS"
+}
+migrated=$(printf '%s\n' \
+    '# my bookmarks' \
+    '' \
+    "https://old.example${TAB}Old style${TAB}code sec" \
+    "https://equwal.com${TAB}Spenser Truex's website.${TAB}" \
+    "https://pipe.example${TAB}a | b${TAB}lib" \
+    "https://indented.example${TAB}spaced   out${TAB}org" \
+    "https://bare.example${TAB}${TAB}" \
+    "https://100.example${TAB}100%s done \\n${TAB}lib" \
+    "https://new.example${TAB}Already TSV${TAB}org")
+
+old_file
+original=$(cat "$BOOKMARKS")
+eq 'bm-migrate -n prints the converted file' "$($MIGRATE -n "$BOOKMARKS")" "$migrated"
+eq 'bm-migrate -n changes nothing' \
+    "$(cat "$BOOKMARKS")|$(backups)" "$original|0"
+eq 'bm-migrate - is a filter' "$($MIGRATE - < "$BOOKMARKS")" "$migrated"
+eq 'bm-migrate reports what it did' "$($MIGRATE "$BOOKMARKS")" \
+    "migrated 6 lines in $BOOKMARKS (original kept as $BOOKMARKS.bak)"
+eq 'bm-migrate converts in place' "$(cat "$BOOKMARKS")" "$migrated"
+eq 'bm-migrate keeps the original as .bak' "$(cat "$BOOKMARKS.bak")" "$original"
+eq 'bm-migrate has nothing to do the second time' "$($MIGRATE "$BOOKMARKS")" \
+    "nothing to migrate in $BOOKMARKS"
+eq 'bm-migrate then leaves file and backup alone' \
+    "$(cat "$BOOKMARKS")|$(cat "$BOOKMARKS.bak")|$(backups)" \
+    "$migrated|$original|1"
+
+printf '%s\n' 'https://late.example Added by hand | org' >> "$BOOKMARKS"
+$MIGRATE "$BOOKMARKS" >/dev/null
+eq 'bm-migrate never overwrites an earlier backup' \
+    "$(cat "$BOOKMARKS.bak")|$(grep -c late.example "$BOOKMARKS.bak.1")" "$original|1"
+
+old_file
+eq 'bm-migrate defaults to the BOOKMARKS variable' "$($MIGRATE >/dev/null; cat "$BOOKMARKS")" "$migrated"
+
+old_file
+$BM --migrate >/dev/null
+eq 'bm --migrate and bm-migrate agree' "$(cat "$BOOKMARKS")" "$migrated"
+
+old_file
+ln -s "$BOOKMARKS" "$work/link"
+chmod 600 "$BOOKMARKS"
+$MIGRATE "$work/link" >/dev/null
+eq 'bm-migrate keeps a symlinked file a symlink, and its mode' \
+    "$([ -L "$work/link" ] && echo link) $(find "$BOOKMARKS" -perm 600 | wc -l | tr -d ' ') $(grep -c "$TAB" "$BOOKMARKS")" \
+    'link 1 7'
+chmod 644 "$BOOKMARKS"
+
+$MIGRATE "$work/nosuchfile" 2>/dev/null
+eq 'bm-migrate fails on a missing file' "$?" '1'
+$MIGRATE --bogus 2>/dev/null
+eq 'bm-migrate rejects unknown options' "$?" '2'
+$MIGRATE a b 2>/dev/null
+eq 'bm-migrate takes one file' "$?" '2'
+rm -f "$BOOKMARKS".bak* "$work/link" "$work/link".bak*
 
 # ---- argument handling ----
 

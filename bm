@@ -561,9 +561,21 @@ check () {
 }
 
 # Old lines look like "url description | tag tag". Lines that already have a
-# tab are left alone, so running this twice is harmless.
+# tab are left alone, so running this twice is harmless. bm-migrate does the
+# same for any file, without needing bm.
 migrate () {
-    cp "$BOOKMARKS" "$BOOKMARKS.bak" || die "could not back up $BOOKMARKS"
+    if ! needs_migration; then
+        printf 'nothing to migrate in %s\n' "$BOOKMARKS"
+        return 0
+    fi
+    # Never overwrite an earlier backup: it may be the only original left.
+    backup=$BOOKMARKS.bak
+    n=0
+    while [ -e "$backup" ]; do
+        n=$((n + 1))
+        backup=$BOOKMARKS.bak.$n
+    done
+    cp -p "$BOOKMARKS" "$backup" || die "could not back up $BOOKMARKS"
     awk '
         /\t/ || /^#/ || NF == 0 { print; next }
         {
@@ -578,9 +590,9 @@ migrate () {
             gsub(/^ +| +$/, "", desc)
             gsub(/^ +| +$/, "", tags)
             printf "%s\t%s\t%s\n", url, desc, tags
-        }' "$BOOKMARKS.bak" | rewrite "$BOOKMARKS" \
-        || die "could not rewrite $BOOKMARKS"
-    printf 'migrated %s (backup in %s.bak)\n' "$BOOKMARKS" "$BOOKMARKS"
+        }' "$backup" | rewrite "$BOOKMARKS" \
+        || die "could not rewrite $BOOKMARKS; the original is in $backup"
+    printf 'migrated %s (original kept as %s)\n' "$BOOKMARKS" "$backup"
     autocommit 'bm: migrate to TSV'
 }
 

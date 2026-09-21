@@ -5,7 +5,7 @@ all:
 
 check:
 	@if command -v shellcheck >/dev/null 2>&1; then \
-		shellcheck -s sh bm test/run.sh test/fakemenu test/fakefzf; \
+		shellcheck -s sh bm bm-migrate test/run.sh test/fakemenu test/fakefzf; \
 	else \
 		echo shellcheck not found: skipping lint; \
 	fi
@@ -14,7 +14,7 @@ check:
 dist:
 	@echo creating dist tarball
 	@mkdir -p sbm-${VERSION}-temp
-	@cp -R Makefile config.mk README TODO bm usertags test sbm-${VERSION}-temp
+	@cp -R Makefile config.mk README TODO bm bm-migrate usertags test sbm-${VERSION}-temp
 	@mv sbm-${VERSION}-temp sbm-${VERSION}
 	@tar -cf sbm-${VERSION}.tar sbm-${VERSION}
 	@gzip sbm-${VERSION}.tar
@@ -23,11 +23,11 @@ dist:
 install:
 	@echo installing scripts to ${DESTDIR}${PREFIX}/bin
 	@mkdir -p ${DESTDIR}${PREFIX}/bin
-	@cp bm ${DESTDIR}${PREFIX}/bin
-	@chmod 755 ${DESTDIR}${PREFIX}/bin/bm
+	@cp bm bm-migrate ${DESTDIR}${PREFIX}/bin
+	@chmod 755 ${DESTDIR}${PREFIX}/bin/bm ${DESTDIR}${PREFIX}/bin/bm-migrate
 
 uninstall:
 	@echo removing scripts
-	rm -f ${DESTDIR}${PREFIX}/bin/bm
+	rm -f ${DESTDIR}${PREFIX}/bin/bm ${DESTDIR}${PREFIX}/bin/bm-migrate
 
 .PHONY: all check dist install uninstall
