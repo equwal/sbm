@@ -307,3 +307,10 @@ the GitHub release of the tag.
 == Credits ==
 Some ideas taken from Karl Voit:
 https://karl-voit.at/2022/01/29/How-to-Use-Tags/
+
+== License ==
+AGPL-3.0: see LICENSE. If you run a changed version for other people over a
+network, give them its source code.
+
+If sbm is useful to you, you can support it on Ko-fi:
+https://ko-fi.com/truex
