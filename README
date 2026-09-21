@@ -153,9 +153,12 @@ Links that would run script (javascript:, data:) are never written.
     bm-import vivaldi | bm --merge            # or chrome, brave, edge, chromium
     bm-import path/to/Bookmarks | bm --merge  # a Chromium JSON file (needs jq)
 
-Folder names become tags ("Dev Tools" becomes dev-tools). bm --merge skips
-what you already have, so importing twice adds nothing. Look before you
-merge: bm-import prints plain bookmark lines.
+A browser name imports the bookmarks of all profiles of that browser. The
+profiles are in ~/.config, in ~/Library/Application Support on macOS, or in
+%LOCALAPPDATA% on Windows. Folder names become tags ("Dev Tools" becomes
+dev-tools). bm --merge skips what you already have, so importing twice adds
+nothing. To sync new browser bookmarks into bm, run the same command again.
+Look before you merge: bm-import prints plain bookmark lines.
 
 == Dead links ==
     bm-check
