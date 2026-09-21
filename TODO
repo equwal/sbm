@@ -15,5 +15,5 @@ PREVENT DUPLICATES
 - [X] bookmark preview (fzf: live; dmenu: the second menu)
 - [X] a personal web page of the bookmarks, with search (bm-html)
 - [X] split into small tools; POSIX sh and POSIX utilities only
-- tag filter and sort order from inside the dmenu list
+- sort order from inside the dmenu list
 - man pages

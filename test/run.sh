@@ -688,25 +688,11 @@ eq 'browse: ctrl-s cycles the sort order' \
     "$(grep -o 'sort \[[a-z]*\]' "$SBM_TEST_LOG" | paste -sd ' ' -)" \
     'sort [used] sort [recent] sort [url]'
 
-rm -f "$work/opened"
-answers 'ctrl-t:' 'sec' 'enter:example'
-fz </dev/null
-eq 'browse: ctrl-t narrows to a tag' "$(cat "$work/opened")" 'https://a.example'
-
-# The fake fzf gives the first tag that contains the typed text, else the
-# typed text. No bookmark has i2p, but the tag file has it.
+# Tags need no key of their own: fzf matches the tags column like the rest.
 : > "$SBM_TEST_LOG"
-answers 'ctrl-t:' 'i2' ''
+answers ''
 fz </dev/null
-eq 'browse: ctrl-t offers the tags of the tag file too' \
-    "$(grep -o 'tag \[[^]]*\]' "$SBM_TEST_LOG" | paste -sd ' ' -)" 'tag [all] tag [i2p]'
-printf '# zzcomment\n' >> "$BOOKMARKS"
-: > "$SBM_TEST_LOG"
-answers 'ctrl-t:' 'zzcom' ''
-fz </dev/null
-eq 'browse: ctrl-t takes no tags from comment lines' \
-    "$(grep -o 'tag \[[^]]*\]' "$SBM_TEST_LOG" | paste -sd ' ' -)" 'tag [all] tag [zzcom]'
-seed
+eq 'browse: no tag filter key' "$(grep -c -e 'ctrl-t' -e '\^T' "$SBM_TEST_LOG")" '0'
 
 answers 'ctrl-d:Zed' ''
 printf 'n\n' | fz 2>/dev/null

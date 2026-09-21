@@ -99,9 +99,11 @@ Closing the second menu goes back to the list, closing the list leaves.
 With fzf (no display, or SBM_MENU=fzf) it is one screen: the bookmark under
 the cursor is previewed live, and keys do the rest.
 
-    ENTER   open            ctrl-a  add            ctrl-t  filter by tag
-    ctrl-y  copy            ctrl-d  delete (asks)  ctrl-s  next sort order
+    ENTER   open            ctrl-a  add            ctrl-s  next sort order
+    ctrl-y  copy            ctrl-d  delete (asks)
     ESC     leave           ctrl-e  edit
+
+To see the bookmarks of a tag, type the tag. fzf searches the tags too.
 
 == Web search ==
 In the list, and in "bm -o", text that is not a bookmark is not wasted:

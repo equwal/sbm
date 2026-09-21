@@ -466,23 +466,6 @@ nextorder () {
     esac
 }
 
-# alltags: the tags of $USERTAGS and the tags that the bookmarks use. A tag
-# that no bookmark uses yet is a tag too.
-alltags () {
-    { sed 's/[ |].*//' "$USERTAGS" 2>/dev/null
-      awk -F'\t' 'NF && !/^#/ { print $3 }' "$BOOKMARKS" | tr ' ' '\n'
-    } | sed '/^$/d' | sort -u
-}
-
-picktag () {
-    tag=$( { printf '(all)\n'; alltags; } | pick 'tag:')
-    case $tag in
-        '')      ;;
-        '(all)') tagfilter= ;;
-        *)       tagfilter=$tag ;;
-    esac
-}
-
 # add exits, which must not end a browsing session; and when it refuses a
 # duplicate the user has to get to see that before the list comes back.
 add_inside () {
@@ -496,9 +479,9 @@ add_inside () {
 # copying leave it, the other keys come back to it.
 browse_fzf () {
     while :; do
-        header="ENTER open  ^Y copy  ^A add  ^D delete  ^E edit  ^T tag [${tagfilter:-all}]  ^S sort [$sortorder]"
+        header="ENTER open  ^Y copy  ^A add  ^D delete  ^E edit  ^S sort [$sortorder]"
         out=$(rows | fzfrows | withpreview fzfcmd --print-query \
-              --expect=ctrl-y,ctrl-a,ctrl-d,ctrl-e,ctrl-t,ctrl-s \
+              --expect=ctrl-y,ctrl-a,ctrl-d,ctrl-e,ctrl-s \
               --header="$header" --prompt='bookmark: ')
         [ -n "$out" ] || exit 1
         typed=$(printf '%s\n' "$out" | sed -n 1p)
@@ -507,7 +490,6 @@ browse_fzf () {
 
         case $key in
             ctrl-a) add_inside; continue ;;
-            ctrl-t) picktag; continue ;;
             ctrl-s) nextorder; continue ;;
         esac
         if [ -z "$url" ]; then
