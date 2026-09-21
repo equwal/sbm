@@ -10,10 +10,12 @@
 # "Dev Tools" is dev-tools. Only http, https, ftp and file URLs are kept.
 # A browser name reads the JSON files of all profiles of that browser, in
 # the directory that the browser uses on Linux, macOS or Windows (Cygwin).
+# --files prints the names of these files, for bm-watch.
 
 usage () {
     cat <<'EOF2'
 usage: bm-import <file> | vivaldi | chrome | brave | edge | chromium
+       bm-import --files vivaldi | chrome | brave | edge | chromium
 EOF2
 }
 
@@ -22,13 +24,15 @@ die () {
     exit 1
 }
 
+files=
+case ${1-} in
+    -h|--help) usage; exit 0 ;;
+    --files)   files=1; shift ;;
+esac
 if [ $# -ne 1 ]; then
     usage >&2
     exit 2
 fi
-case $1 in
-    -h|--help) usage; exit 0 ;;
-esac
 
 # browser_dir <linux> <macos> <windows>: the first directory of the browser
 # that exists. The names are relative to ~/.config, to ~/Library/Application
@@ -58,6 +62,16 @@ case $1 in
     chromium) dir=$(browser_dir chromium Chromium Chromium) ;;
     *)        dir= ;;
 esac || die "found no profiles of $1"
+if [ -n "$files" ]; then
+    if [ -z "$dir" ]; then
+        usage >&2
+        exit 2
+    fi
+    for file in "$dir"/*/Bookmarks; do
+        if [ -r "$file" ]; then printf '%s\n' "$file"; fi
+    done
+    exit 0
+fi
 if [ -n "$dir" ]; then
     command -v jq >/dev/null 2>&1 || die "reading $1 needs jq"
 else

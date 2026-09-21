@@ -1,6 +1,6 @@
 include config.mk
 
-SCRIPTS = bm bm-migrate bm-import bm-check bm-html bm-title bm-commit
+SCRIPTS = bm bm-migrate bm-import bm-check bm-html bm-title bm-commit bm-watch
 TESTS = test/run.sh test/fakemenu test/fakefzf
 
 all:

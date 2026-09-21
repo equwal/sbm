@@ -23,6 +23,7 @@ other Unix tools, and you install only the ones you use:
     bm-migrate  the old sbm file format  -> bookmark lines
     bm-title    a URL                    -> the page's title
     bm-commit   commit the bookmark file to git
+    bm-watch    browser bookmarks        -> bm, now and after each change
 
     bm-import bookmarks.html | bm --merge
     bm --tag code --list | bm-check -
@@ -163,6 +164,12 @@ dev-tools). bm --merge skips what you already have, so importing twice adds
 nothing. To sync new browser bookmarks into bm, run the same command again.
 Look before you merge: bm-import prints plain bookmark lines.
 
+bm-watch does this import at once, and again each time that the bookmark
+file of a profile changes. It only adds bookmarks, and it never writes to
+the browser:
+
+    bm-watch brave &
+
 == Dead links ==
     bm-check
 
@@ -217,10 +224,15 @@ Printing nothing means the user cancelled. test/fakemenu is a small example.
 == Windows ==
 bm runs under Cygwin. Get sbm-VERSION-setup.exe from a release on GitHub and
 start it. The installer puts bm and the bm-* tools in /usr/local/bin. It
-makes a desktop shortcut that opens bm in a mintty window, and Esc closes
-the window. The key of the shortcut is Ctrl+Alt+Shift+F24. Almost no keyboard
-has an F24 key, so keyboard firmware can use this key combination without
-conflicts.
+makes a Start menu entry and a desktop shortcut that open bm in a mintty
+window, and Esc closes the window. The key of the desktop shortcut is
+Ctrl+Alt+Shift+F24. Almost no keyboard has an F24 key, so keyboard firmware
+can use this key combination without conflicts.
+
+The installer imports the bookmarks of all profiles of the Chromium browsers
+(Brave, Chrome, Chromium, Edge and Vivaldi). A Startup entry, sbm-watch, runs
+bm-watch at each login, so new browser bookmarks come into bm a few seconds
+after you add them. The import needs the jq package of Cygwin.
 
 The installer also puts fzf.exe, the Windows build of fzf, in
 /usr/local/libexec/sbm. Do not use the fzf package of Cygwin. That package is

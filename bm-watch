@@ -1,0 +1,87 @@
+#!/bin/sh
+
+# bm-watch: bring the bookmarks of browsers into bm, and keep them coming.
+#
+#     bm-watch brave &
+#     bm-watch -i 30 brave vivaldi
+#
+# At the start, and each time that the bookmark file of a profile changes,
+# bm-watch runs "bm-import <browser> | bm --merge". So a bookmark that you
+# add in the browser comes into bm a few seconds later. bm-watch only adds:
+# it does not remove from bm what you delete in the browser, and it never
+# writes to the browser. It checks the files every 5 seconds (-i), and it
+# looks for new profiles once a minute. -1 checks once and stops.
+
+usage () {
+    printf 'usage: bm-watch [-1] [-i seconds] browser...\n'
+}
+
+die () {
+    printf 'bm-watch: %s\n' "$*" >&2
+    exit 1
+}
+
+interval=5
+once=
+while getopts 1i: opt; do
+    case $opt in
+        1) once=1 ;;
+        i) interval=$OPTARG ;;
+        *) usage >&2; exit 2 ;;
+    esac
+done
+shift $((OPTIND - 1))
+if [ $# -eq 0 ]; then
+    usage >&2
+    exit 2
+fi
+case $interval in
+    ''|*[!0-9]*|0) usage >&2; exit 2 ;;
+esac
+
+# files <browser>...: the bookmark files of all profiles, one per line.
+files () {
+    for browser; do
+        bm-import --files "$browser" 2>/dev/null
+    done
+}
+
+# sync <browser>...: merge the bookmarks of the browsers that have profiles.
+sync () {
+    for browser; do
+        if [ -n "$(bm-import --files "$browser" 2>/dev/null)" ]; then
+            bm-import "$browser" | bm --merge
+        fi
+    done
+}
+
+# stamp <files>: the checksum of each file. One cksum reads them all.
+stamp () {
+    [ -n "$1" ] || return 0
+    (
+        IFS='
+'
+        set -f
+        # shellcheck disable=SC2086  # one file per line, on purpose
+        cksum $1 2>/dev/null
+    )
+}
+
+list=$(files "$@")
+[ -n "$list" ] || die "found no profiles of $*"
+last=
+ticks=0
+while :; do
+    if [ "$ticks" -ge 60 ]; then
+        list=$(files "$@")
+        ticks=0
+    fi
+    now=$(stamp "$list")
+    if [ "$now" != "$last" ]; then
+        sync "$@"
+        last=$now
+    fi
+    [ -z "$once" ] || exit 0
+    sleep "$interval"
+    ticks=$((ticks + interval))
+done

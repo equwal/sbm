@@ -81,6 +81,7 @@ make check
 %{_bindir}/bm-import
 %{_bindir}/bm-migrate
 %{_bindir}/bm-title
+%{_bindir}/bm-watch
 
 %changelog
 * Sun Sep 20 2026 Spenser Truex <truex@equwal.com> - 0.3-1
