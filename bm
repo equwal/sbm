@@ -14,6 +14,8 @@ USERTAGS=${USERTAGS:-$DATADIR/usertags}
 ENGINES=${SBM_ENGINES:-$DATADIR/engines}
 SEARCH=${SBM_SEARCH:-https://duckduckgo.com/?q=%s}
 USAGE=$BOOKMARKS.usage
+WLOCK=$BOOKMARKS.lock
+locked=
 TAB=$(printf '\t')
 
 # Two URLs are the same bookmark when they differ only in scheme, a leading
@@ -301,6 +303,36 @@ rewrite () {
     return $rc
 }
 
+# lock: take the write lock of the bookmark file, a directory beside it. bm
+# holds it while it changes the file, and bm-sync while it reads or writes
+# the file, so that neither writes over a change of the other. A lock whose
+# process is gone is taken over. After $SBM_LOCK_WAIT seconds (default 10)
+# bm stops.
+lock () {
+    waited=0
+    until mkdir "$WLOCK" 2>/dev/null; do
+        pid=$(cat "$WLOCK/pid" 2>/dev/null)
+        if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+            [ "$(cat "$WLOCK/pid" 2>/dev/null)" != "$pid" ] || rm -rf "$WLOCK"
+            continue
+        fi
+        [ "$waited" -lt "${SBM_LOCK_WAIT:-10}" ] \
+            || die "$BOOKMARKS is in use (bm -e or bm-sync). If neither runs, remove $WLOCK"
+        sleep 1
+        waited=$((waited + 1))
+    done
+    echo $$ > "$WLOCK/pid"
+    locked=1
+    # Also in the subshell of add_inside, which does not keep these traps.
+    trap unlock EXIT
+    trap 'exit 1' HUP INT TERM
+}
+
+unlock () {
+    [ -z "$locked" ] || rm -rf "$WLOCK"
+    locked=
+}
+
 # bump <url>: count a use, for the "used" order. The counts live beside the
 # bookmark file, which stays a plain list: url, count, time of last use.
 # srand() returns the previous seed, and the first seed is the time of day:
@@ -345,19 +377,26 @@ open_url () {
     opener "$1"
 }
 
+# The editor reads the file when it starts and writes it when you save, so
+# bm holds the lock until the editor ends. bm-sync then waits, and syncs the
+# edit after it.
 edit_url () {
+    lock
     line=$(SBM_URL=$1 awk -F'\t' \
            '$1 == ENVIRON["SBM_URL"] { print NR; exit }' "$BOOKMARKS")
     ${VISUAL:-${EDITOR:-vi}} "+${line:-1}" "$BOOKMARKS"
+    unlock
     changed 'bm: edit'
 }
 
 delete_url () {
+    lock
     for file in "$BOOKMARKS" "$USAGE"; do
         [ -e "$file" ] || continue
         SBM_URL=$1 awk -F'\t' '$1 != ENVIRON["SBM_URL"]' "$file" \
             | rewrite "$file" || die "could not rewrite $file"
     done
+    unlock
     changed "bm: delete $1"
 }
 
@@ -431,7 +470,9 @@ add () {
     printf '%s\n' "$names" | learn_tags
     tags=$(printf '%s\n' "$names" | paste -sd ' ' -)
 
+    lock
     printf '%s\t%s\t%s\n' "$url" "$desc" "$tags" >> "$BOOKMARKS"
+    unlock
     changed "bm: add $url"
 }
 
@@ -439,6 +480,7 @@ add () {
 # known yet are appended. This is how the output of bm-import gets in.
 merge () {
     new=$(tmpfile "$BOOKMARKS") || die 'cannot create a temporary file'
+    lock
     SBM_FILE=$BOOKMARKS SBM_NEW=$new awk -F'\t' "$AWK_NORM"'
         BEGIN {
             while ((getline line < ENVIRON["SBM_FILE"]) > 0) {
@@ -452,6 +494,7 @@ merge () {
         END { printf "added %d, skipped %d duplicates\n", added, skipped }'
     cut -f3 "$new" | tr ' ' '\n' | sort -u | learn_tags
     cat "$new" >> "$BOOKMARKS"
+    unlock
     rm -f "$new"
     changed 'bm: merge'
 }

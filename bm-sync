@@ -13,6 +13,7 @@ CONFIG=${SBM_SYNC_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/sbm/sync}
 SERVER=https://sbm.subread.space
 STATE=$BOOKMARKS.sync   # name of the version of the last sync
 LOCK=$BOOKMARKS.sync.lock
+WLOCK=$BOOKMARKS.lock   # the write lock of bm
 quiet=
 
 usage () {
@@ -51,6 +52,33 @@ private () {
 cleanup () {
     rm -rf "$work"
     [ -z "$locked" ] || rm -rf "$LOCK"
+    wunlock
+}
+
+# wlock: take the write lock of bm, as bm does. bm holds it while it changes
+# the file: while bm -e runs, that is until the editor ends. After
+# $SBM_LOCK_WAIT seconds (default 10) bm-sync stops, and the next change in
+# bm syncs again.
+wlock () {
+    waited=0
+    until mkdir "$WLOCK" 2>/dev/null; do
+        pid=$(cat "$WLOCK/pid" 2>/dev/null)
+        if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+            [ "$(cat "$WLOCK/pid" 2>/dev/null)" != "$pid" ] || rm -rf "$WLOCK"
+            continue
+        fi
+        [ "$waited" -lt "${SBM_LOCK_WAIT:-10}" ] \
+            || die "$BOOKMARKS is in use (bm -e?): sync again later"
+        sleep 1
+        waited=$((waited + 1))
+    done
+    echo $$ > "$WLOCK/pid"
+    wlocked=1
+}
+
+wunlock () {
+    [ -z "$wlocked" ] || rm -rf "$WLOCK"
+    wlocked=
 }
 
 login () {
@@ -137,7 +165,12 @@ sync () {
     tries=0
     while :; do
         rm -f "$LOCK/again"
+        # bm writes a delete as an empty file and then the new text. Without
+        # the lock, bm-sync could send the half-written file, and the server
+        # would delete the lines that it lacks.
+        wlock
         cat "$BOOKMARKS" > "$work/sent"
+        wunlock
         # An empty file with a version would delete all bookmarks on the
         # server, and then on all devices. Without a version, the server
         # deletes nothing, and sends all bookmarks back.
@@ -155,19 +188,18 @@ sync () {
         version=$(tr -d '\r' < "$work/head" | sed -n 's/^[Ss][Bb][Mm]-[Vv][Ee][Rr][Ss][Ii][Oo][Nn]: *//p')
         [ -n "$version" ] || die 'the server gave no version'
 
+        # Hold the lock from the check to the write, so that no change of bm
+        # comes between them.
+        wlock
         # bm changed the file while it was away: send the new file. The
         # answer to the old one is of no use.
         if ! cmp -s "$work/sent" "$BOOKMARKS"; then
+            wunlock
             tries=$((tries + 1))
             [ $tries -lt 5 ] || die 'the file changes all the time: try again later'
             continue
         fi
-        # A known race: bm and bm-sync do not lock the file against each
-        # other. If bm adds a line after the cmp above and before the write
-        # below, the write removes that line. If bm reads the file for a
-        # delete or an edit before the write and writes it after the write,
-        # bm removes the merged lines. The next sync then deletes them on the
-        # server. A fix needs a lock that bm and bm-sync take for each write.
+        wrote=
         if ! cmp -s "$work/out" "$BOOKMARKS"; then
             # Forget the version first, and keep the new one only after the
             # write. If the write stops part way (a full disk), the next sync
@@ -175,9 +207,13 @@ sync () {
             rm -f "$STATE"
             # Through cat, not mv, as in bm: a symlinked file stays a symlink.
             cat "$work/out" > "$BOOKMARKS" || die "cannot write $BOOKMARKS"
-            if command -v bm-commit >/dev/null 2>&1; then bm-commit 'bm-sync: merge'; fi
+            wrote=1
         fi
         printf '%s\n' "$version" > "$STATE"
+        wunlock
+        if [ -n "$wrote" ] && command -v bm-commit >/dev/null 2>&1; then
+            bm-commit 'bm-sync: merge'
+        fi
         [ -e "$LOCK/again" ] || break
     done
     say "in sync: $(grep -c -v -e '^#' -e '^[[:space:]]*$' "$BOOKMARKS") bookmarks"
@@ -199,6 +235,7 @@ command -v curl >/dev/null 2>&1 || die 'curl is not installed'
 work=${TMPDIR:-/tmp}/bm-sync.$$
 mkdir -m 700 "$work" || die "cannot create $work"
 locked=
+wlocked=
 trap cleanup EXIT
 trap 'exit 1' INT TERM
 

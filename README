@@ -205,6 +205,11 @@ network. The sign-in token is kept in ~/.config/sbm/sync.
 An empty or missing bookmark file removes nothing on the other devices:
 bm-sync gets all the bookmarks back from the server.
 
+bm and bm-sync lock the file for each change, with the directory
+$BOOKMARKS.lock, so that neither writes over a change of the other. bm -e
+holds the lock until the editor ends; bm-sync waits for it, and bm syncs
+the edit after. A lock left by a process that is gone is taken over.
+
 The server is sbm-sync (https://github.com/equwal/sbm-sync). bm-sync uses
 https://sbm.subread.space unless you give another server: create an account
 there. The server is free software, so you can run your own:
@@ -238,6 +243,7 @@ All through the environment, all optional.
     SBM_COPY      command that reads the new clipboard contents from stdin
     SBM_PASTE     command that writes the clipboard contents to stdout
     SBM_OPEN      command that opens the URL given as its argument
+    SBM_LOCK_WAIT seconds that bm and bm-sync wait for the lock (default 10)
 
 With a display bm uses dmenu; fzf is only used when dmenu is missing or
 there is no X11 or Wayland display. A custom SBM_MENU is called with the
