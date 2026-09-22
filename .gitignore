@@ -1,5 +1,10 @@
 tags.*
+*.o
+config.h
 bm
+bm-migrate
+bm-html
+bm-check
 bmks
 sbm-*-setup.exe
 sbm-*.dmg

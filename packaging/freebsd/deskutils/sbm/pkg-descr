@@ -12,4 +12,4 @@ bm-html writes a searchable web page, bm-migrate converts the old file
 format, bm-title prints a page's title and bm-commit keeps the bookmark
 file's history in git.
 
-Everything is POSIX sh and POSIX utilities. Nothing is compiled.
+bm, bm-migrate, bm-check and bm-html are C99; the rest is POSIX sh.

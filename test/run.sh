@@ -3,20 +3,27 @@
 # Non-interactive tests for bm and the bm-* tools. Menus are scripted through
 # test/fakemenu and test/fakefzf, and the clipboard and opener are stubs that
 # write to files.
-# usage: sh test/run.sh        (SBM_SH=dash sh test/run.sh to pick the shell)
+# usage: make && sh test/run.sh
+# SBM_SH=dash sh test/run.sh picks the shell that runs the tools that are
+# scripts. SBM_BIN=dir tests the compiled tools of another build.
 
 # Several groups point BOOKMARKS somewhere else inside a subshell on purpose.
 # shellcheck disable=SC2030,SC2031
 
 here=$(cd "$(dirname "$0")" && pwd)
 top=$(cd "$here/.." && pwd)
-BM="${SBM_SH:-sh} $top/bm"
-MIGRATE="${SBM_SH:-sh} $top/bm-migrate"
+bin=${SBM_BIN:-$top}
+BM="$bin/bm"
+MIGRATE="$bin/bm-migrate"
+CHECK="$bin/bm-check"
+HTML="$bin/bm-html"
 IMPORT="${SBM_SH:-sh} $top/bm-import"
-CHECK="${SBM_SH:-sh} $top/bm-check"
-HTML="${SBM_SH:-sh} $top/bm-html"
 TITLE="${SBM_SH:-sh} $top/bm-title"
 TAB=$(printf '\t')
+
+for tool in "$BM" "$MIGRATE" "$CHECK" "$HTML"; do
+    [ -x "$tool" ] || { printf '%s is missing: run make first\n' "$tool" >&2; exit 1; }
+done
 
 work=${TMPDIR:-/tmp}/sbmtest.$$
 mkdir -m 700 "$work" || exit 1
@@ -228,6 +235,7 @@ old_file () {
         'https://pipe.example a | b | lib' \
         '  https://indented.example   spaced   out  |  org  ' \
         'https://bare.example' \
+        'https://nodesc.example | org' \
         'https://100.example 100%s done \n | lib' \
         "https://new.example${TAB}Already TSV${TAB}org" > "$BOOKMARKS"
 }
@@ -239,6 +247,7 @@ migrated=$(printf '%s\n' \
     "https://pipe.example${TAB}a | b${TAB}lib" \
     "https://indented.example${TAB}spaced   out${TAB}org" \
     "https://bare.example${TAB}${TAB}" \
+    "https://nodesc.example${TAB}${TAB}org" \
     "https://100.example${TAB}100%s done \\n${TAB}lib" \
     "https://new.example${TAB}Already TSV${TAB}org")
 
@@ -249,7 +258,7 @@ eq 'bm-migrate -n changes nothing' \
     "$(cat "$BOOKMARKS")|$(backups)" "$original|0"
 eq 'bm-migrate - is a filter' "$($MIGRATE - < "$BOOKMARKS")" "$migrated"
 eq 'bm-migrate reports what it did' "$($MIGRATE "$BOOKMARKS")" \
-    "migrated 6 lines in $BOOKMARKS (original kept as $BOOKMARKS.bak)"
+    "migrated 7 lines in $BOOKMARKS (original kept as $BOOKMARKS.bak)"
 eq 'bm-migrate converts in place' "$(cat "$BOOKMARKS")" "$migrated"
 eq 'bm-migrate keeps the original as .bak' "$(cat "$BOOKMARKS.bak")" "$original"
 eq 'bm-migrate has nothing to do the second time' "$($MIGRATE "$BOOKMARKS")" \
@@ -274,7 +283,7 @@ chmod 600 "$BOOKMARKS"
 $MIGRATE "$work/link" >/dev/null
 eq 'bm-migrate keeps a symlinked file a symlink, and its mode' \
     "$([ -L "$work/link" ] && echo link) $(find "$BOOKMARKS" -perm 600 | wc -l | tr -d ' ') $(grep -c "$TAB" "$BOOKMARKS")" \
-    'link 1 7'
+    'link 1 8'
 chmod 644 "$BOOKMARKS"
 
 $MIGRATE "$work/nosuchfile" 2>/dev/null
@@ -311,10 +320,10 @@ for gone in '--import x' --check --migrate '-s x'; do
 done
 
 bad=
-for script in bm bm-migrate bm-import bm-check bm-html bm-title bm-commit bm-watch; do
+for script in bm-import bm-title bm-commit bm-watch bm-sync; do
     [ "$(sed -n 1p "$top/$script")" = '#!/bin/sh' ] || bad="$bad $script"
 done
-eq 'every script asks for /bin/sh' "$bad" ''
+eq 'every tool that is a script asks for /bin/sh' "$bad" ''
 
 # ---- sorting and use counts ----
 
@@ -351,7 +360,7 @@ eq 'use counts are kept beside the bookmarks' \
 answers 'Alpha'; $BM -d >/dev/null
 eq 'delete forgets the use count' "$(grep -c 'c.example' "$BOOKMARKS.usage")" '0'
 
-# A writable file in a directory that is not: temporary files go to $TMPDIR.
+# A writable file in a directory that is not: files are rewritten in place.
 if [ "$(id -u)" -ne 0 ]; then
     mkdir "$work/locked" "$work/tmp"
     printf '%s\n' "https://keep.example${TAB}Keep${TAB}" "https://drop.example${TAB}Drop${TAB}" \
@@ -369,13 +378,6 @@ if [ "$(id -u)" -ne 0 ]; then
         "$(cut -f1 "$work/locked/bookmarks" | paste -sd ' ' -) $(cut -f1,2 "$work/locked/bookmarks.usage")" \
         "https://keep.example https://merged.example https://keep.example${TAB}1"
     eq 'and no temporary file is left behind' "$(find "$work/tmp" "$work/locked" -name '*sbm*' -o -name '*.tmp.*' | wc -l | tr -d ' ')" '0'
-    ln -s "$work/locked/bookmarks" "$work/tmp/sbm.planted"
-    # tmpfile relies on this: with noclobber, ">" refuses a name that exists,
-    # a symlink included, instead of writing through it.
-    # shellcheck disable=SC2016
-    eq 'a name planted in the temporary directory is refused, not written through' \
-        "$( if ${SBM_SH:-sh} -c 'set -C; : > "$1"' sh "$work/tmp/sbm.planted" 2>/dev/null
-            then echo written; else echo refused; fi) $(grep -c . "$work/locked/bookmarks")" 'refused 2'
     chmod 755 "$work/locked"
 fi
 
@@ -535,18 +537,18 @@ if command -v jq >/dev/null 2>&1; then
     WATCH="${SBM_SH:-sh} $top/bm-watch"
     reset
     eq 'bm-watch -1 imports the bookmarks of every profile' \
-        "$(PATH="$top:$PATH" HOME=$work/linux XDG_CONFIG_HOME='' LOCALAPPDATA='' $WATCH -1 brave)" \
+        "$(PATH="$bin:$top:$PATH" HOME=$work/linux XDG_CONFIG_HOME='' LOCALAPPDATA='' $WATCH -1 brave)" \
         'added 3, skipped 5 duplicates'
     eq 'bm-watch -1 again adds nothing' \
-        "$(PATH="$top:$PATH" HOME=$work/linux XDG_CONFIG_HOME='' LOCALAPPDATA='' $WATCH -1 brave)" \
+        "$(PATH="$bin:$top:$PATH" HOME=$work/linux XDG_CONFIG_HOME='' LOCALAPPDATA='' $WATCH -1 brave)" \
         'added 0, skipped 8 duplicates'
     $WATCH -1 2>/dev/null
     eq 'bm-watch wants a browser' "$?" '2'
-    PATH="$top:$PATH" HOME=$work/nohome XDG_CONFIG_HOME='' LOCALAPPDATA='' $WATCH -1 brave 2>/dev/null
+    PATH="$bin:$top:$PATH" HOME=$work/nohome XDG_CONFIG_HOME='' LOCALAPPDATA='' $WATCH -1 brave 2>/dev/null
     eq 'bm-watch fails when it finds no profiles' "$?" '1'
 
     reset
-    PATH="$top:$PATH" HOME=$work/linux XDG_CONFIG_HOME='' LOCALAPPDATA='' \
+    PATH="$bin:$top:$PATH" HOME=$work/linux XDG_CONFIG_HOME='' LOCALAPPDATA='' \
         $WATCH -i 1 brave >/dev/null 2>&1 &
     watcher=$!
     trap 'kill "$watcher" 2>/dev/null; rm -rf "$work"' EXIT INT TERM

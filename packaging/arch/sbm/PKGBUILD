@@ -3,8 +3,8 @@
 pkgname=sbm
 pkgver=0.3
 pkgrel=1
-pkgdesc='Bookmark manager made of POSIX sh scripts, driven by dmenu or fzf'
-arch=('any')
+pkgdesc='Bookmark manager in C and POSIX sh, driven by dmenu or fzf'
+arch=('x86_64' 'aarch64')
 url='https://github.com/equwal/sbm'
 # Upstream has not chosen a licence yet and ships no LICENSE file. Replace
 # SBM_LICENSE_TBD with the SPDX identifier, and add the usual
@@ -33,8 +33,8 @@ source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
 sha256sums=('SBM_SHA256_TBD')
 
 build() {
-  # Nothing is compiled; the package is a set of sh scripts.
-  :
+  cd "$pkgname-$pkgver"
+  make
 }
 
 check() {
@@ -56,4 +56,4 @@ package() {
 # Before uploading to the AUR, regenerate the metadata:
 #   makepkg --printsrcinfo > .SRCINFO
 # and commit PKGBUILD and .SRCINFO together. Check the result with
-#   namcap PKGBUILD && namcap sbm-0.3-1-any.pkg.tar.zst
+#   namcap PKGBUILD && namcap sbm-0.3-1-x86_64.pkg.tar.zst

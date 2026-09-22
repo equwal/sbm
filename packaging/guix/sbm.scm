@@ -47,10 +47,8 @@
       #~(list (string-append "PREFIX=" #$output))
       #:phases
       #~(modify-phases %standard-phases
-          ;; There is no configure script, and nothing is compiled: the
-          ;; upstream "all" target only prints a reminder.
+          ;; There is no configure script.
           (delete 'configure)
-          (delete 'build)
           (replace 'check
             (lambda* (#:key tests? #:allow-other-keys)
               (when tests?
@@ -109,7 +107,7 @@
     (native-inputs
      (list shellcheck))
     (home-page "https://github.com/equwal/sbm")
-    (synopsis "Bookmark manager made of POSIX sh scripts, driven by dmenu or fzf")
+    (synopsis "Bookmark manager in C and POSIX sh, driven by dmenu or fzf")
     (description
      "sbm keeps bookmarks in one tab separated file: URL, description, tags.
 @command{bm} picks one with dmenu, or with fzf on a bare terminal, and then
@@ -123,7 +121,7 @@ web page, @command{bm-migrate} converts the old file format,
 @command{bm-title} prints a page's title and @command{bm-commit} keeps the
 bookmark file's history in git.
 
-Everything is POSIX sh and POSIX utilities.  Nothing is compiled.")
+bm, bm-migrate, bm-check and bm-html are C99; the rest is POSIX sh.")
     ;; Upstream has not chosen a licence yet and ships no LICENSE file.
     ;; Replace SBM_LICENSE_TBD with a variable from (guix licenses), for
     ;; example license:gpl3+. As written this is an unbound variable and

@@ -5,7 +5,7 @@ EAPI=8
 
 inherit git-r3 optfeature
 
-DESCRIPTION="Bookmark manager made of POSIX sh scripts, driven by dmenu or fzf"
+DESCRIPTION="Bookmark manager in C and POSIX sh, driven by dmenu or fzf"
 HOMEPAGE="https://github.com/equwal/sbm"
 EGIT_REPO_URI="https://github.com/equwal/sbm.git"
 EGIT_BRANCH="master"
@@ -30,11 +30,6 @@ RDEPEND="
 	)
 	wayland? ( gui-apps/wl-clipboard )
 "
-
-src_compile() {
-	# Nothing is compiled; the package is a set of sh scripts.
-	:
-}
 
 src_test() {
 	sh test/run.sh || die "test suite failed"

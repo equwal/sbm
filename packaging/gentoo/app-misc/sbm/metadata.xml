@@ -22,7 +22,7 @@
 		the old file format, bm-title fetches a page title and bm-commit
 		keeps the file's history in git.
 
-		Everything is POSIX sh and POSIX utilities. Nothing is compiled.
+		bm, bm-migrate, bm-check and bm-html are C99; the rest is POSIX sh.
 	</longdescription>
 	<!--
 		No <use> block: X and wayland are global USE flags, and pkgcheck

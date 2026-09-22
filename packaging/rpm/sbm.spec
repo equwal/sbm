@@ -1,7 +1,7 @@
 Name:           sbm
 Version:        0.3
 Release:        1%{?dist}
-Summary:        Bookmark manager made of POSIX sh scripts, driven by dmenu or fzf
+Summary:        Bookmark manager in C and POSIX sh, driven by dmenu or fzf
 
 # Upstream has not chosen a licence yet and ships no LICENSE file. Replace
 # SBM_LICENSE_TBD with the SPDX identifier, and add the LICENSE file to the
@@ -13,8 +13,7 @@ URL:            https://github.com/equwal/sbm
 #   spectool -g sbm.spec
 Source0:        %{url}/archive/refs/tags/v%{version}.tar.gz#/%{name}-%{version}.tar.gz
 
-BuildArch:      noarch
-
+BuildRequires:  gcc
 BuildRequires:  make
 # make check runs shellcheck -s sh over every script before the test suite.
 # Both Fedora and openSUSE call the package ShellCheck.
@@ -51,13 +50,13 @@ bm-html writes a searchable web page, bm-migrate converts the old file
 format, bm-title prints a page's title and bm-commit keeps the bookmark
 file's history in git.
 
-Everything is POSIX sh and POSIX utilities. Nothing is compiled.
+bm, bm-migrate, bm-check and bm-html are C99; the rest is POSIX sh.
 
 %prep
 %autosetup
 
 %build
-# Nothing is compiled; the package is a set of sh scripts.
+%make_build
 
 %install
 %make_install PREFIX=%{_prefix}

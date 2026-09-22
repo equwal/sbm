@@ -9,7 +9,7 @@ make_install_args="PREFIX=/usr"
 # you run X11.
 depends="fzf"
 checkdepends="shellcheck"
-short_desc="Bookmark manager made of POSIX sh scripts, driven by fzf"
+short_desc="Bookmark manager in C and POSIX sh, driven by fzf"
 maintainer="Spenser Truex <truex@equwal.com>"
 # Upstream has not chosen a licence yet and ships no LICENSE file. Replace
 # SBM_LICENSE_TBD with the SPDX identifier and add "vlicense LICENSE" to

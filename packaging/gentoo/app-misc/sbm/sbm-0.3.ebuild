@@ -5,7 +5,7 @@ EAPI=8
 
 inherit optfeature
 
-DESCRIPTION="Bookmark manager made of POSIX sh scripts, driven by dmenu or fzf"
+DESCRIPTION="Bookmark manager in C and POSIX sh, driven by dmenu or fzf"
 HOMEPAGE="https://github.com/equwal/sbm"
 SRC_URI="https://github.com/equwal/sbm/archive/refs/tags/v${PV}.tar.gz
 	-> ${P}.tar.gz"
@@ -35,11 +35,6 @@ RDEPEND="
 	)
 	wayland? ( gui-apps/wl-clipboard )
 "
-
-src_compile() {
-	# Nothing is compiled; the package is a set of sh scripts.
-	:
-}
 
 src_test() {
 	# "make check" also runs shellcheck when it happens to be installed,
