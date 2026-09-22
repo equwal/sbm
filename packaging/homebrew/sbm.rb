@@ -1,5 +1,5 @@
 class Sbm < Formula
-  desc "Bookmark manager made of POSIX sh scripts, driven by dmenu or fzf"
+  desc "Bookmark manager in C and POSIX sh, driven by dmenu or fzf"
   homepage "https://github.com/equwal/sbm"
   url "https://github.com/equwal/sbm/archive/refs/tags/v0.3.tar.gz"
   sha256 "SBM_SHA256_TBD"

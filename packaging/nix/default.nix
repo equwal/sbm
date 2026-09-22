@@ -1,5 +1,5 @@
 { lib
-, stdenvNoCC
+, stdenv
 , fetchFromGitHub
 , makeWrapper
 , gawk
@@ -13,8 +13,8 @@
 , jq
 , git
   # dmenu is X11 only, so it is off on Darwin and fzf carries the menu there.
-, withDmenu ? stdenvNoCC.hostPlatform.isLinux
-, withWaylandClipboard ? stdenvNoCC.hostPlatform.isLinux
+, withDmenu ? stdenv.hostPlatform.isLinux
+, withWaylandClipboard ? stdenv.hostPlatform.isLinux
   # Optional at runtime: bm-title and bm-check (curl), bm-import of Chromium
   # JSON files (jq), bm-commit (git). Cheap enough to keep on by default.
 , withCurl ? true
@@ -22,7 +22,7 @@
 , withGit ? true
 }:
 
-stdenvNoCC.mkDerivation (finalAttrs: {
+stdenv.mkDerivation (finalAttrs: {
   pname = "sbm";
   version = "0.3";
 
@@ -37,9 +37,6 @@ stdenvNoCC.mkDerivation (finalAttrs: {
   };
 
   nativeBuildInputs = [ makeWrapper ];
-
-  # Nothing is compiled. The upstream "all" target only prints a reminder.
-  dontBuild = true;
 
   doCheck = true;
 
@@ -68,7 +65,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
         # xclip, wl-clipboard, dmenu and xdg-utils are X11 or Wayland
         # programs and do not evaluate on Darwin.
         [ gawk coreutils fzf ]
-        ++ lib.optionals stdenvNoCC.hostPlatform.isLinux [ xclip xdg-utils ]
+        ++ lib.optionals stdenv.hostPlatform.isLinux [ xclip xdg-utils ]
         ++ lib.optional withDmenu dmenu
         ++ lib.optional withWaylandClipboard wl-clipboard
         ++ lib.optional withCurl curl
@@ -85,7 +82,7 @@ stdenvNoCC.mkDerivation (finalAttrs: {
     '';
 
   meta = {
-    description = "Bookmark manager made of POSIX sh scripts, driven by dmenu or fzf";
+    description = "Bookmark manager in C and POSIX sh, driven by dmenu or fzf";
     longDescription = ''
       sbm keeps bookmarks in one tab separated file: URL, description, tags.
       bm picks one from dmenu, or from fzf on a bare terminal, and opens it,

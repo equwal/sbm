@@ -30,20 +30,22 @@ other Unix tools, and you install only the ones you use:
     bm --tag code --list | bm-check -
     bm --list | grep -i wiki | bm-html -t Wikis - > wikis.html
 
-Everything is POSIX sh and POSIX utilities: no bash, no mktemp, no GNU
-options. make check runs shellcheck -s sh over all of it. Where the usual
-tool is not in POSIX, the script says what stands in for it: noclobber for
-mktemp, a FIFO of tokens for xargs -P, dd for head -c, awk's srand() for
-date +%s.
+bm, bm-migrate, bm-html and bm-check are C99 that needs nothing but libc
+and POSIX. bm-import, bm-title, bm-commit, bm-watch and bm-sync are POSIX sh
+with POSIX utilities: no bash, no GNU options. The menu, the clipboard, the opener, curl
+and your editor are still separate programs. bm runs them with their
+arguments as they are; no shell ever sees a URL.
 
 == Requirements ==
-dmenu (or fzf), one of xclip, xsel or wl-clipboard, sh, awk, make.
-curl for bm-title, bm-check and bm-sync, jq for bm-import of Chromium files,
-git for bm-commit.
+A C99 compiler and make to build. dmenu (or fzf) and one of xclip, xsel or
+wl-clipboard to run. sh and awk for the tools that are scripts. curl for
+bm-title, bm-check and bm-sync, jq for bm-import of Chromium files, git for
+bm-commit.
 
 == Install ==
 Edit TOOLS in config.mk to choose what gets installed, then
 
+    make
     make install                        # to /usr/local/bin
     make PREFIX="$HOME/.local" install
 
@@ -230,7 +232,9 @@ Earlier versions wrote "URL description | tag tag".
 The original is kept as .bak, and an existing .bak is never overwritten.
 
 == Configuration ==
-All through the environment, all optional.
+The defaults are in config.h, which make copies from config.def.h; edit it and
+build again. The environment wins over them at run time, and all of it is
+optional.
 
     BOOKMARKS     bookmark file
     USERTAGS      tag choices file
@@ -305,9 +309,13 @@ contrib/macos/build-dmg.sh makes the image on a Mac.
 == Tests ==
     make check
 
-runs shellcheck, when installed, and test/run.sh, under sh. Run the tests
-under another shell with SBM_SH=dash sh test/run.sh. They script dmenu, fzf
-and curl, so they need no display and no network.
+builds, runs shellcheck over the scripts when it is installed, and runs
+test/run.sh. The tests script dmenu, fzf and curl, so they need no display and
+no network. SBM_SH=dash sh test/run.sh runs the tools that are scripts under
+another shell, and SBM_BIN=dir tests the compiled tools of another build, for
+example one with -fsanitize=address,undefined. test/fuzz.c has libFuzzer
+targets for everything that parses a file; test/corpus holds their seeds and
+the inputs that once broke something.
 
 == Releases ==
 Set VERSION in config.mk. Tag the release as vVERSION. make dist makes the

@@ -4,7 +4,7 @@ DISTVERSION=	0.3
 CATEGORIES=	deskutils
 
 MAINTAINER=	truex@equwal.com
-COMMENT=	Bookmark manager made of POSIX sh scripts, driven by dmenu or fzf
+COMMENT=	Bookmark manager in C and POSIX sh, driven by dmenu or fzf
 WWW=		https://github.com/equwal/sbm
 
 # Upstream has not chosen a licence yet and ships no LICENSE file. Replace
@@ -18,16 +18,11 @@ LICENSE=	SBM_LICENSE_TBD
 # run X11: bm prefers it whenever $DISPLAY is set.
 RUN_DEPENDS=	fzf:textproc/fzf
 
-# FreeBSD's /bin/sh is POSIX and runs everything here as is. gmake is not
-# about building, since nothing is compiled: upstream's Makefile starts with
-#   include config.mk
-# which is GNU make syntax. bmake wants ".include" and cannot parse the file.
+# Upstream's Makefile starts with "include config.mk", which is GNU make
+# syntax. bmake wants ".include" and cannot parse the file.
 USES=		gmake
 USE_GITHUB=	yes
 GH_ACCOUNT=	equwal
-
-NO_ARCH=	yes
-NO_BUILD=	yes
 
 OPTIONS_DEFINE=		DOCS EXAMPLES
 

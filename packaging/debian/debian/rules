@@ -1,12 +1,7 @@
 #!/usr/bin/make -f
-# Nothing here is compiled, so there is no build step and no hardening to do.
 
 %:
 	dh $@
-
-override_dh_auto_build:
-	# The upstream "all" target only prints a reminder; there is nothing
-	# to build.
 
 # dh_auto_test finds the "check" target on its own, since there is no
 # "test" target. It runs shellcheck -s sh over every script and then the

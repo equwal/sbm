@@ -5,11 +5,10 @@ PortGroup           github 1.0
 
 github.setup        equwal sbm 0.3 v
 categories          www
-platforms           any
-supported_archs     noarch
+platforms           darwin
 maintainers         {equwal.com:truex @equwal}
 
-description         Bookmark manager made of POSIX sh scripts, driven by fzf
+description         Bookmark manager in C and POSIX sh, driven by fzf
 
 long_description    sbm keeps bookmarks in one tab separated file: URL, \
                     description, tags. bm picks one with fzf and opens it, \
@@ -17,8 +16,8 @@ long_description    sbm keeps bookmarks in one tab separated file: URL, \
                     bookmark is opened as an address or searched for on the \
                     web. The rest are small filters over bookmark lines: \
                     bm-import, bm-check, bm-html, bm-migrate, bm-title and \
-                    bm-commit. Everything is POSIX sh and POSIX utilities; \
-                    nothing is compiled.
+                    bm-commit. bm and the main tools are C99, the rest \
+                    is POSIX sh.
 
 homepage            https://github.com/equwal/sbm
 
@@ -40,9 +39,6 @@ checksums           rmd160  SBM_RMD160_TBD \
 depends_run         port:fzf
 
 use_configure       no
-
-# Nothing is compiled; the upstream "all" target only prints a reminder.
-build {}
 
 # destroot.destdir already carries DESTDIR=${destroot}. PREFIX has to be on
 # the command line: config.mk assigns it plainly, and a plain assignment in a

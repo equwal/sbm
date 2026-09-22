@@ -26,7 +26,8 @@ mentions a sync client.
 
     bm  bm-migrate  bm-import  bm-check  bm-html  bm-title  bm-commit  bm-watch
 
-Nothing is compiled. There are no man pages. Every package calls
+bm, bm-migrate, bm-check and bm-html are C99 and need a C compiler and make
+to build; the rest are sh scripts. There are no man pages. Every package calls
 `make DESTDIR=... PREFIX=... install` rather than copying the scripts itself,
 except the Windows packages, which unpack the release archive and generate
 `.cmd` shims instead.
@@ -39,7 +40,8 @@ format is in use, and the user copies them to `~/.local/share/sbm/`.
 
 | | Programs | Why |
 |---|---|---|
-| Required | POSIX sh, awk | everything |
+| Build | C99 compiler, make | bm, bm-migrate, bm-check, bm-html |
+| Required | POSIX sh, awk | the tools that are scripts |
 | Required | dmenu **or** fzf | the menu |
 | Required | xclip **or** xsel **or** wl-clipboard | `bm --copy` |
 | Recommended | xdg-utils | opening URLs (`xdg-open`) |

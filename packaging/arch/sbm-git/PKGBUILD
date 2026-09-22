@@ -7,8 +7,8 @@ pkgname=sbm-git
 _pkgname=sbm
 pkgver=0.3.r0.gUNKNOWN
 pkgrel=1
-pkgdesc='Bookmark manager made of POSIX sh scripts, driven by dmenu or fzf (git)'
-arch=('any')
+pkgdesc='Bookmark manager in C and POSIX sh, driven by dmenu or fzf (git)'
+arch=('x86_64' 'aarch64')
 url='https://github.com/equwal/sbm'
 # See the comment in ../sbm/PKGBUILD: no licence has been chosen upstream yet.
 license=('SBM_LICENSE_TBD')
@@ -43,8 +43,8 @@ pkgver() {
 }
 
 build() {
-  # Nothing is compiled; the package is a set of sh scripts.
-  :
+  cd "$_pkgname"
+  make
 }
 
 check() {
