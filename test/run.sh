@@ -16,6 +16,7 @@ IMPORT="${SBM_SH:-sh} $top/bm-import"
 CHECK="${SBM_SH:-sh} $top/bm-check"
 HTML="${SBM_SH:-sh} $top/bm-html"
 TITLE="${SBM_SH:-sh} $top/bm-title"
+PAGE="${SBM_SH:-sh} $top/bm-page"
 TAB=$(printf '\t')
 
 work=${TMPDIR:-/tmp}/sbmtest.$$
@@ -311,7 +312,7 @@ for gone in '--import x' --check --migrate '-s x'; do
 done
 
 bad=
-for script in bm bm-migrate bm-import bm-check bm-html bm-title bm-commit bm-watch; do
+for script in bm bm-migrate bm-import bm-check bm-html bm-title bm-page bm-commit bm-watch; do
     [ "$(sed -n 1p "$top/$script")" = '#!/bin/sh' ] || bad="$bad $script"
 done
 eq 'every script asks for /bin/sh' "$bad" ''
@@ -462,6 +463,78 @@ $BM -a https://notagfile.example 2>/dev/null
 eq 'a missing tag file is created from the first new tag' \
     "$(cat "$USERTAGS")|$(cut -f3 "$BOOKMARKS")" 'first | |first'
 cp "$here/../usertags" "$USERTAGS"
+
+# ---- bm-page, and the page in the fzf preview ----
+
+mkdir "$work/page"
+cat > "$work/page/curl" <<'FAKE'
+#!/bin/sh
+printf 'curl %s\n' "$*" >> "$SBM_TEST_CURLLOG"
+for arg in "$@"; do url=$arg; done
+case $url in
+    *rich*)
+        printf '<!doctype html><html><head><TITLE lang=en>\n A &amp; B &#8212; &#x263A; </Title>\n'
+        printf '<style>p { color: red } a < b</style><script>if (a < b) document.write("<p>no</p>")</script></head>\n'
+        printf '<body><!-- a < comment -->\n<h1>Head</h1><p>One\n   two <a href="x">link</a>&nbsp;three.</p>\n'
+        printf '<ul><li>first</li><li>second</li></ul><svg><title>no</title><text>no</text></svg>\n'
+        printf '<noscript>no</noscript><p>5 &lt; 6 &bogus; &#65;</p></body></html>\n'
+        ;;
+    *ctrl*)
+        printf '<p>esc:\033[31mred\033[0m bel:\007 c1:\302\233x end</p>\n'
+        ;;
+    *main*)
+        printf '<title>T</title><nav>Menu one<br>Menu two</nav><main><h1>Article</h1><p>Body</p></main><footer>Foot</footer>\n'
+        ;;
+    *pdf*)
+        printf '%%PDF-1.7\n1 0 obj\n'
+        ;;
+    *big*)
+        # More than 512k before the text.
+        awk 'BEGIN { for (i = 0; i < 540000; i++) printf "x"; print "<p>too far</p>" }'
+        ;;
+esac
+FAKE
+chmod +x "$work/page/curl"
+
+# page <url>: bm-page with the stand-in curl.
+page () {
+    PATH="$work/page:$PATH" SBM_FETCH=1 $PAGE "$@"
+}
+nl='
+'
+
+eq 'bm-page prints the title, then the text without scripts, styles, comments and svg' \
+    "$(page https://rich.example/)" \
+    "A & B — ☺${nl}${nl}Head${nl}${nl}One two link three.${nl}${nl}first${nl}second${nl}${nl}5 < 6 &bogus; A"
+out=$(page https://ctrl.example/)
+eq 'bm-page removes control characters, so that a page cannot drive the terminal' \
+    "$out|$(printf '%s' "$out" | LC_ALL=C tr -d '\040-\176' | wc -c | tr -d ' ')" 'esc:[31mred[0m bel: c1:x end|0'
+eq 'bm-page shows only the main part of a page that marks one' \
+    "$(page https://main.example/)" "T${nl}${nl}Article${nl}${nl}Body"
+eq 'bm-page names a PDF document' "$(page https://pdf.example/)" '(a PDF document)'
+eq 'bm-page reads at most 512k of a page' "$(page https://big.example/ | grep -c 'too far')" '0'
+: > "$SBM_TEST_CURLLOG"
+eq 'bm-page with SBM_FETCH=0 prints nothing' \
+    "$(PATH="$work/page:$PATH" SBM_FETCH=0 $PAGE https://rich.example/)" ''
+eq 'bm-page fetches only http and https pages' \
+    "$(page ftp://rich.example/)$(page 'javascript:alert(1)')$(page rich.example)" ''
+eq 'bm-page with SBM_FETCH=0, or for another scheme, never runs curl' "$(cat "$SBM_TEST_CURLLOG")" ''
+eq 'bm-page takes an HTTPS address in capitals' "$(page HTTPS://main.example/ | sed -n 1p)" 'T'
+$PAGE 2>/dev/null
+eq 'bm-page wants exactly one url' "$?" '2'
+$PAGE https://a.example https://b.example 2>/dev/null
+eq 'bm-page wants exactly one url, not two' "$?" '2'
+
+# The preview command of the fzf list, as fzf runs it: each placeholder
+# becomes its field in single quotes.
+preview=$(sed -n 's/^PREVIEW="\(.*\)"$/\1/p' "$top/bm" |
+    sed "s|{1}|'https://main.example/'|g; s|{2}|'Main page'|; s|{3}|'code'|; s|{4}|'3'|")
+eq 'the fzf preview shows the bookmark, then the text of its page' \
+    "$(PATH="$top:$work/page:$PATH" SBM_FETCH=1 ${SBM_SH:-sh} -c "$preview")" \
+    "https://main.example/${nl}Main page${nl}tags: code${nl}used: 3${nl}${nl}T${nl}${nl}Article${nl}${nl}Body"
+eq 'the fzf preview shows the bookmark without bm-page' \
+    "$(PATH="$work/page:/usr/bin:/bin" SBM_FETCH=1 ${SBM_SH:-sh} -c "$preview" 2>&1)" \
+    "https://main.example/${nl}Main page${nl}tags: code${nl}used: 3"
 
 # ---- bm-import and bm --merge ----
 
@@ -726,13 +799,13 @@ eq 'browse: text that matches nothing is searched for on the web' \
 answers 'ctrl-s:' ''
 fz </dev/null
 eq 'browse: the preview follows the cursor' \
-    "$(grep -c -e "--preview=printf '%s.n%s.ntags: %s.nused: %s.n' {1} {2} {3} {4}" "$SBM_TEST_LOG")" '2'
+    "$(grep -c -e "--preview=printf '%s.n%s.ntags: %s.nused: %s.n.n' {1} {2} {3} {4}; sleep 0.3 2>/dev/null; bm-page {1} 2>/dev/null" "$SBM_TEST_LOG")" '2'
 
 : > "$SBM_TEST_LOG"
 answers 'Mid'
 fz -c </dev/null
 eq 'fzf: rows are listed by their display column, with a live preview' \
-    "$(grep -c -e "--with-nth=5.. --preview-window=down:5:wrap --preview=printf '%s" "$SBM_TEST_LOG")" '1'
+    "$(grep -c -e "--with-nth=5.. --preview-window=right:50%:wrap --preview=printf '%s" "$SBM_TEST_LOG")" '1'
 : > "$SBM_TEST_LOG"
 answers 'Mid'
 SBM_FZF_OPTS='--height=100%' fz -c </dev/null

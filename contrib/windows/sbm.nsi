@@ -83,6 +83,7 @@ Section
   File "${SRC}\bin\bm-html"
   File "${SRC}\bin\bm-import"
   File "${SRC}\bin\bm-migrate"
+  File "${SRC}\bin\bm-page"
   File "${SRC}\bin\bm-sync"
   File "${SRC}\bin\bm-title"
   File "${SRC}\bin\bm-watch"
@@ -100,7 +101,7 @@ Section
 
   ; Cygwin does not see an execute permission on files that a Windows
   ; program makes. Cygwin chmod sets it.
-  nsExec::ExecToLog '"$Cygwin\bin\chmod.exe" 755 /usr/local/bin/bm /usr/local/bin/bm-check /usr/local/bin/bm-commit /usr/local/bin/bm-html /usr/local/bin/bm-import /usr/local/bin/bm-migrate /usr/local/bin/bm-sync /usr/local/bin/bm-title /usr/local/bin/bm-watch /usr/local/bin/fzf /usr/local/libexec/sbm/fzf.exe'
+  nsExec::ExecToLog '"$Cygwin\bin\chmod.exe" 755 /usr/local/bin/bm /usr/local/bin/bm-check /usr/local/bin/bm-commit /usr/local/bin/bm-html /usr/local/bin/bm-import /usr/local/bin/bm-migrate /usr/local/bin/bm-page /usr/local/bin/bm-sync /usr/local/bin/bm-title /usr/local/bin/bm-watch /usr/local/bin/fzf /usr/local/libexec/sbm/fzf.exe'
   Pop $0
   ${If} $0 != 0
     Abort "chmod failed with exit status $0"
@@ -163,6 +164,7 @@ Section Uninstall
   Delete "$Cygwin\usr\local\bin\bm-html"
   Delete "$Cygwin\usr\local\bin\bm-import"
   Delete "$Cygwin\usr\local\bin\bm-migrate"
+  Delete "$Cygwin\usr\local\bin\bm-page"
   Delete "$Cygwin\usr\local\bin\bm-sync"
   Delete "$Cygwin\usr\local\bin\bm-title"
   Delete "$Cygwin\usr\local\bin\bm-watch"

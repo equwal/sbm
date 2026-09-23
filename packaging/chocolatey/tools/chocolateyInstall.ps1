@@ -6,7 +6,7 @@ $toolsDir    = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $stage       = Join-Path $toolsDir 'staging'
 
 # What Makefile's TOOLS installs.
-$scripts = @('bm', 'bm-migrate', 'bm-import', 'bm-check', 'bm-html', 'bm-title', 'bm-commit', 'bm-watch', 'bm-sync')
+$scripts = @('bm', 'bm-migrate', 'bm-import', 'bm-check', 'bm-html', 'bm-title', 'bm-page', 'bm-commit', 'bm-watch', 'bm-sync')
 
 # ---------------------------------------------------------------------------
 # Fetch and unpack.

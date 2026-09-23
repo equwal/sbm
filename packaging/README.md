@@ -24,7 +24,7 @@ mentions a sync client.
 
 `make install` copies the programs in `TOOLS` to `${DESTDIR}${PREFIX}/bin`:
 
-    bm  bm-migrate  bm-import  bm-check  bm-html  bm-title  bm-commit  bm-watch
+    bm  bm-migrate  bm-import  bm-check  bm-html  bm-title  bm-page  bm-commit  bm-watch
 
 Nothing is compiled. There are no man pages. Every package calls
 `make DESTDIR=... PREFIX=... install` rather than copying the scripts itself,
@@ -43,7 +43,7 @@ format is in use, and the user copies them to `~/.local/share/sbm/`.
 | Required | dmenu **or** fzf | the menu |
 | Required | xclip **or** xsel **or** wl-clipboard | `bm --copy` |
 | Recommended | xdg-utils | opening URLs (`xdg-open`) |
-| Optional | curl | `bm-title`, `bm-check` |
+| Optional | curl | `bm-title`, `bm-page`, `bm-check` |
 | Optional | jq | `bm-import` of Chromium JSON files |
 | Optional | git | `bm-commit` |
 

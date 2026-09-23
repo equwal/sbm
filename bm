@@ -235,8 +235,11 @@ is_bookmark () {
 }
 
 # For fzf a fifth field is added, and it is all that is listed. The first
-# four feed the preview, which follows the cursor.
-PREVIEW="printf '%s\n%s\ntags: %s\nused: %s\n' {1} {2} {3} {4}"
+# four feed the preview, which follows the cursor: the bookmark in full, then
+# the text of its page when bm-page is installed. fzf stops the preview when
+# the cursor moves on, so the short sleep keeps a fast scroll from fetching
+# each page on the way. A sleep that knows no fractions fails and skips it.
+PREVIEW="printf '%s\n%s\ntags: %s\nused: %s\n\n' {1} {2} {3} {4}; sleep 0.3 2>/dev/null; bm-page {1} 2>/dev/null"
 fzfrows () {
     awk -F'\t' 'NF {
         desc = $2
@@ -248,7 +251,7 @@ fzfrows () {
 # withpreview <fzf command and options>: for the output of fzfrows.
 withpreview () {
     "$@" --delimiter="$TAB" --with-nth=5.. \
-         --preview-window=down:5:wrap --preview="$PREVIEW"
+         --preview-window=right:50%:wrap --preview="$PREVIEW"
 }
 
 # choose <prompt>: a bookmark's URL, or whatever else the user typed.

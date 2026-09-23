@@ -81,6 +81,7 @@ make check
 %{_bindir}/bm-import
 %{_bindir}/bm-migrate
 %{_bindir}/bm-title
+%{_bindir}/bm-page
 %{_bindir}/bm-watch
 
 %changelog

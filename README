@@ -22,6 +22,7 @@ other Unix tools, and you install only the ones you use:
     bm-html     bookmark lines           -> a searchable web page
     bm-migrate  the old sbm file format  -> bookmark lines
     bm-title    a URL                    -> the page's title
+    bm-page     a URL                    -> the page as text
     bm-commit   commit the bookmark file to git
     bm-watch    browser bookmarks        -> bm, now and after each change
     bm-sync     the bookmark file        <-> your other devices
@@ -38,8 +39,8 @@ date +%s.
 
 == Requirements ==
 dmenu (or fzf), one of xclip, xsel or wl-clipboard, sh, awk, make.
-curl for bm-title, bm-check and bm-sync, jq for bm-import of Chromium files,
-git for bm-commit.
+curl for bm-title, bm-page, bm-check and bm-sync, jq for bm-import of
+Chromium files, git for bm-commit.
 
 == Install ==
 Edit TOOLS in config.mk to choose what gets installed, then
@@ -98,7 +99,10 @@ Closing the second menu goes back to the list, closing the list leaves.
 [add] at the top of the list adds a bookmark.
 
 With fzf (no display, or SBM_MENU=fzf) it is one screen: the bookmark under
-the cursor is previewed live, and keys do the rest.
+the cursor is previewed live, and keys do the rest. With bm-page installed,
+the preview also shows the text of the page: its title, then its main part.
+bm-page fetches the page with curl (5 second limit, at most 512k; SBM_FETCH=0
+turns it off).
 
     ENTER   open            ctrl-a  add            ctrl-s  next sort order
     ctrl-y  copy            ctrl-d  delete (asks)
@@ -275,9 +279,9 @@ version 0.11 from 2016, and it has no --preview and no --expect. The wrapper
 SBM_OPEN, SBM_COPY, SBM_PASTE and SBM_FZF_OPTS for Cygwin. Settings in
 ~/.bash_profile win.
 
-For bm-title, bm-check and bm-import, install the curl and jq packages of
-Cygwin. The Windows builds of curl and jq do not understand Cygwin paths,
-such as /dev/null. To remove sbm, use Apps in the Windows settings. The
+For bm-title, bm-page, bm-check and bm-import, install the curl and jq
+packages of Cygwin. The Windows builds of curl and jq do not understand
+Cygwin paths, such as /dev/null. To remove sbm, use Apps in the Windows settings. The
 uninstaller keeps your bookmarks. contrib/windows/build-installer.sh makes
 the installer with NSIS.
 

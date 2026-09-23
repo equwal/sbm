@@ -5,6 +5,7 @@ bin/bm-html
 bin/bm-import
 bin/bm-migrate
 bin/bm-title
+bin/bm-page
 bin/bm-watch
 %%PORTDOCS%%%%DOCSDIR%%/README
 %%PORTDOCS%%%%DOCSDIR%%/TODO
