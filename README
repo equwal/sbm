@@ -215,7 +215,7 @@ holds the lock until the editor ends; bm-sync waits for it, and bm syncs
 the edit after. A lock left by a process that is gone is taken over.
 
 The server is sbm-sync (https://github.com/equwal/sbm-sync). bm-sync uses
-https://sbm.subread.space unless you give another server: create an account
+https://sbmsync.com unless you give another server: create an account
 there. The server is free software, so you can run your own:
 
     bm-sync login https://sbm.example.org

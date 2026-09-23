@@ -10,7 +10,7 @@
 DATADIR=${XDG_DATA_HOME:-$HOME/.local/share}/sbm
 BOOKMARKS=${BOOKMARKS:-$DATADIR/bookmarks}
 CONFIG=${SBM_SYNC_CONFIG:-${XDG_CONFIG_HOME:-$HOME/.config}/sbm/sync}
-SERVER=https://sbm.subread.space
+SERVER=https://sbmsync.com
 STATE=$BOOKMARKS.sync   # name of the version of the last sync
 LOCK=$BOOKMARKS.sync.lock
 WLOCK=$BOOKMARKS.lock   # the write lock of bm
@@ -20,7 +20,7 @@ usage () {
     cat <<'EOF'
 usage: bm-sync [-q] [login [server] | logout | status]
 Without a command: sync the bookmark file now.
-  login     sign in to the server (default https://sbm.subread.space)
+  login     sign in to the server (default https://sbmsync.com)
             and sync; asks for your email and password
   logout    sign out on this computer
   status    show the server and the time of the last sync

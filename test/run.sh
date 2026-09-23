@@ -1185,6 +1185,12 @@ bmsync -q logout
 eq 'bm-sync logout forgets the token and signs out on the server' \
     "$([ -e "$SBM_SYNC_CONFIG" ] || echo gone) $(cat "$srv/log")" 'gone logout'
 eq 'bm-sync leaves no lock behind' "$(ls -d "$BOOKMARKS.sync.lock" 2>/dev/null)" ''
+
+printf 'me@example.org
+secret pass 
+' | bmsync login >/dev/null 2>&1
+eq 'bm-sync login without a server uses sbmsync.com'     "$(sed -n 1p "$SBM_SYNC_CONFIG")" 'server=https://sbmsync.com'
+bmsync -q logout
 unset SBM_TEST_SRV
 
 # bm starts bm-sync after each change. A stand-in bm-sync records the config
