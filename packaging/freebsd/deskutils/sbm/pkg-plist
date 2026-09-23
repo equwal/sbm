@@ -7,6 +7,7 @@ bin/bm-migrate
 bin/bm-title
 bin/bm-page
 bin/bm-watch
+share/applications/sbm.desktop
 %%PORTDOCS%%%%DOCSDIR%%/README
 %%PORTDOCS%%%%DOCSDIR%%/TODO
 %%PORTEXAMPLES%%%%EXAMPLESDIR%%/engines

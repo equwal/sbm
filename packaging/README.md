@@ -26,6 +26,10 @@ mentions a sync client.
 
     bm  bm-migrate  bm-import  bm-check  bm-html  bm-title  bm-page  bm-commit  bm-watch
 
+It also copies `contrib/linux/sbm.desktop` to
+`${DESTDIR}${PREFIX}/share/applications`: the app-menu entry "sbm", which
+opens bm with fzf and its live preview in a terminal.
+
 Nothing is compiled. There are no man pages. Every package calls
 `make DESTDIR=... PREFIX=... install` rather than copying the scripts itself,
 except the Windows packages, which unpack the release archive and generate

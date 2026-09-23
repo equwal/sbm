@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=sbm
+GenericName=Bookmarks
+Comment=Search your bookmarks, with a live preview of the page
+Exec=env SBM_FZF_OPTS=--no-height bm
+Terminal=true
+Categories=Utility;
+Keywords=bookmarks;search;fzf;

@@ -63,11 +63,13 @@ EOF
 
 # ---- external programs: menu, clipboard, opener ----
 
-# dmenu whenever there is a display to draw it on. fzf stands in on a bare
-# terminal, or when dmenu is not installed.
+# dmenu when there is a display to draw it on and bm does not run in a
+# terminal, for example from a key of the window manager. In a terminal fzf
+# is the menu, because its preview shows the page of the bookmark under the
+# cursor. fzf also stands in when dmenu is not installed.
 pickmenu () {
     [ -n "$SBM_MENU" ] && return
-    if [ -n "$DISPLAY$WAYLAND_DISPLAY" ]; then
+    if [ -n "$DISPLAY$WAYLAND_DISPLAY" ] && ! { [ -t 0 ] && [ -t 2 ]; }; then
         order='dmenu fzf'
     else
         order='fzf dmenu'

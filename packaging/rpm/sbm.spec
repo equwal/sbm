@@ -83,6 +83,7 @@ make check
 %{_bindir}/bm-title
 %{_bindir}/bm-page
 %{_bindir}/bm-watch
+%{_datadir}/applications/sbm.desktop
 
 %changelog
 * Sun Sep 20 2026 Spenser Truex <truex@equwal.com> - 0.3-1

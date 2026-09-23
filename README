@@ -98,11 +98,12 @@ to do:
 Closing the second menu goes back to the list, closing the list leaves.
 [add] at the top of the list adds a bookmark.
 
-With fzf (no display, or SBM_MENU=fzf) it is one screen: the bookmark under
-the cursor is previewed live, and keys do the rest. With bm-page installed,
-the preview also shows the text of the page: its title, then its main part.
-bm-page fetches the page with curl (5 second limit, at most 512k; SBM_FETCH=0
-turns it off).
+With fzf (in a terminal, with no display, or SBM_MENU=fzf) it is one screen:
+the bookmark under the cursor is previewed live, and keys do the rest. With
+bm-page installed, the preview also shows the text of the page: its title,
+then its main part. bm-page fetches the page with curl (5 second limit, at
+most 512k; SBM_FETCH=0 turns it off). make install also adds "sbm" to the
+app menu of a Linux desktop: it opens bm with fzf in a terminal.
 
     ENTER   open            ctrl-a  add            ctrl-s  next sort order
     ctrl-y  copy            ctrl-d  delete (asks)
@@ -151,9 +152,13 @@ bookmark file itself stays a plain list.
 
 One self-contained file: no server side, nothing loaded from elsewhere.
 Bookmarks are listed under each of their tags, with the tags linked at the
-top. A dozen lines of inline script add a filter box; without script the page
-is still the complete list, and Ctrl-F works. page.html?q=words starts out
-filtered, so the page can be a search keyword in your browser, or in bm:
+top. Inline script adds a filter box and, in a wide window, a live preview:
+the page of the highlighted bookmark shows on the right. The arrow keys and
+the mouse move the highlight, and Enter opens it. The preview loads a page
+only when you type or point, in a sandboxed frame without a referrer; some
+sites do not let other pages show them. Without script the page is still the
+complete list, and Ctrl-F works. page.html?q=words starts out filtered, so
+the page can be a search keyword in your browser, or in bm:
 
     b | https://example.org/bookmarks.html?q=%s
 
@@ -249,8 +254,10 @@ All through the environment, all optional.
     SBM_OPEN      command that opens the URL given as its argument
     SBM_LOCK_WAIT seconds that bm and bm-sync wait for the lock (default 10)
 
-With a display bm uses dmenu; fzf is only used when dmenu is missing or
-there is no X11 or Wayland display. A custom SBM_MENU is called with the
+With a display bm uses dmenu, unless bm runs in a terminal: there it uses
+fzf, whose preview shows the page. fzf is also used when dmenu is missing or
+there is no X11 or Wayland display. SBM_MENU=dmenu keeps dmenu in a
+terminal. A custom SBM_MENU is called with the
 choices on stdin as one of:
 
     <command> pick  <prompt>     print the chosen line, or the typed text

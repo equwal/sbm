@@ -865,7 +865,7 @@ both="$work/bin:$work/fzfbin"
 : > "$SBM_TEST_LOG"
 answers 'Zed' 'copy'
 ( unset SBM_MENU WAYLAND_DISPLAY; PATH="$both:$PATH" DISPLAY=:0 $BM </dev/null )
-eq 'a display means dmenu even when fzf exists' \
+eq 'a display without a terminal means dmenu even when fzf exists' \
     "$(cut -d' ' -f1 "$SBM_TEST_LOG" | sort -u)" 'dmenu'
 
 : > "$SBM_TEST_LOG"
@@ -877,6 +877,25 @@ eq 'Wayland means dmenu too' "$(cut -d' ' -f1 "$SBM_TEST_LOG" | sort -u)" 'dmenu
 answers 'enter:Zed'
 ( unset SBM_MENU DISPLAY WAYLAND_DISPLAY; PATH="$both:$PATH" $BM </dev/null )
 eq 'no display falls back to fzf' "$(cut -d' ' -f1 "$SBM_TEST_LOG" | sort -u)" 'fzf'
+
+# In a terminal bm picks fzf even with a display, because the fzf preview
+# shows the page. script (util-linux) gives bm a terminal; without it the
+# test cannot run.
+if SHELL=/bin/sh script -eqc 'test -t 0' /dev/null </dev/null >/dev/null 2>&1; then
+    : > "$SBM_TEST_LOG"
+    answers 'enter:Zed'
+    ( unset SBM_MENU WAYLAND_DISPLAY; export PATH="$both:$PATH" DISPLAY=:0
+      SHELL=/bin/sh script -eqc "$BM" /dev/null </dev/null >/dev/null 2>&1 )
+    eq 'a display with a terminal means fzf, whose preview shows the page' \
+        "$(cut -d' ' -f1 "$SBM_TEST_LOG" | sort -u)" 'fzf'
+    : > "$SBM_TEST_LOG"
+    answers 'Zed' 'copy'
+    ( unset WAYLAND_DISPLAY; export PATH="$both:$PATH" DISPLAY=:0 SBM_MENU=dmenu
+      SHELL=/bin/sh script -eqc "$BM" /dev/null </dev/null >/dev/null 2>&1 )
+    eq 'SBM_MENU=dmenu keeps dmenu in a terminal' "$(cut -d' ' -f1 "$SBM_TEST_LOG" | sort -u)" 'dmenu'
+else
+    printf 'skip the menu in a terminal: util-linux script is not installed\n'
+fi
 
 unset SBM_TEST_LOG
 
@@ -1003,6 +1022,9 @@ eq 'bm-html has one inline script, a filter box hidden without it, and ?q=' \
     "$(printf '%s\n' "$page" | grep -c '<script>') $(printf '%s\n' "$page" | grep -c '<input id=q type=search placeholder="filter 3 bookmarks" hidden>') $(printf '%s\n' "$page" | grep -c 'URLSearchParams(location.search).get("q")')" \
     '1 1 1'
 eq 'bm-html loads nothing from elsewhere' "$(printf '%s\n' "$page" | grep -c -e ' src=' -e '<link' -e '@import')" '0'
+eq 'bm-html has a preview pane that only its script shows, with a sandboxed frame and no referrer' \
+    "$(printf '%s\n' "$page" | grep -c '^<aside id=preview hidden>') $(printf '%s\n' "$page" | grep -c '<iframe title="Preview of the page" sandbox="allow-scripts allow-same-origin" referrerpolicy=no-referrer></iframe></aside>') $(printf '%s\n' "$page" | grep -c 'pane.hidden=false')" \
+    '1 1 1'
 eq 'bm-html is a filter' "$($BM -t lib -l | $HTML - | grep -c '^<li>')" '2'
 eq 'bm-html reads the bookmark file by default, whatever stdin is' \
     "$($HTML </dev/null | grep -c '^<li>')" '4'
@@ -1277,6 +1299,12 @@ if command -v make >/dev/null 2>&1; then
     make -s -C "$top" install DESTDIR="$work/dest" PREFIX=/usr TOOLS='bm bm-html' >/dev/null
     eq 'make install installs what TOOLS names, and only that' \
         "$(cd "$work/dest/usr/bin" && for f in *; do [ -x "$f" ] && printf '%s ' "$f"; done)" 'bm bm-html '
+    eq 'make install puts sbm in the app menu: bm in a terminal, so fzf with the preview' \
+        "$(grep -E '^(Exec|Terminal)=' "$work/dest/usr/share/applications/sbm.desktop" | paste -sd '|' -)" \
+        'Exec=env SBM_FZF_OPTS=--no-height bm|Terminal=true'
+    make -s -C "$top" uninstall DESTDIR="$work/dest" PREFIX=/usr >/dev/null
+    eq 'make uninstall removes the app-menu entry' \
+        "$(ls "$work/dest/usr/share/applications" | wc -l | tr -d ' ')" '0'
 fi
 
 # ---- defaults ----

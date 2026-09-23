@@ -30,9 +30,13 @@ install:
 		cp $$tool ${DESTDIR}${PREFIX}/bin/ && \
 		chmod 755 ${DESTDIR}${PREFIX}/bin/$$tool || exit 1; \
 	done
+	@mkdir -p ${DESTDIR}${PREFIX}/share/applications
+	@cp contrib/linux/sbm.desktop ${DESTDIR}${PREFIX}/share/applications/
+	@chmod 644 ${DESTDIR}${PREFIX}/share/applications/sbm.desktop
 
 uninstall:
 	@echo removing scripts
 	@for tool in ${SCRIPTS}; do rm -f ${DESTDIR}${PREFIX}/bin/$$tool; done
+	@rm -f ${DESTDIR}${PREFIX}/share/applications/sbm.desktop
 
 .PHONY: all check dist install uninstall
