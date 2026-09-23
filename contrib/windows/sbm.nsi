@@ -34,7 +34,11 @@ ManifestDPIAware true
 !endif
 
 !define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\sbm"
-!define MINTTYARGS "--class sbm -t sbm -s 120,32 -p center -o ConfirmExit=no -o Scrollbar=none /bin/bash -lc bm"
+; Bidi=1: no right-to-left reordering on the alternate screen, where fzf
+; runs. The preview can show Arabic or Hebrew text of a page, and mintty
+; would then move that text out of the preview box (see "Box layout with
+; right-to-left text" in the mintty manual).
+!define MINTTYARGS "--class sbm -t sbm -s 120,32 -p center -o ConfirmExit=no -o Scrollbar=none -o Bidi=1 /bin/bash -lc bm"
 !define WATCHARGS '--class sbm-watch -w hide /bin/bash -lc "exec bm-watch brave chrome chromium edge vivaldi"'
 
 Name "sbm ${VERSION}"
