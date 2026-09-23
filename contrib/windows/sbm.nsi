@@ -75,10 +75,12 @@ FunctionEnd
 
 Section
   ; An earlier version can run bm-watch. Stop it before its files change.
-  ${If} ${FileExists} "$Cygwin\usr\local\libexec\sbm\sbm-setup"
-    nsExec::ExecToLog '"$Cygwin\bin\sh.exe" /usr/local/libexec/sbm/sbm-setup stop'
-    Pop $0
-  ${EndIf}
+  ; Use the sbm-setup of this installer. The sbm-setup of sbm 0.4 to 0.6
+  ; does not find tr in the PATH of Windows, so it does not stop bm-watch.
+  SetOutPath "$Cygwin\usr\local\libexec\sbm"
+  File "${SRC}\libexec\sbm-setup"
+  nsExec::ExecToLog '"$Cygwin\bin\sh.exe" /usr/local/libexec/sbm/sbm-setup stop'
+  Pop $0
 
   SetOutPath "$Cygwin\usr\local\bin"
   File "${SRC}\bin\bm"
@@ -95,7 +97,6 @@ Section
   SetOutPath "$Cygwin\usr\local\libexec\sbm"
   File "${SRC}\libexec\fzf.exe"
   File "${SRC}\libexec\fzf-LICENSE.txt"
-  File "${SRC}\libexec\sbm-setup"
   SetOutPath "$Cygwin\usr\local\share\sbm"
   File "${SRC}\share\engines"
   File "${SRC}\share\usertags"

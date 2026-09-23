@@ -1307,6 +1307,19 @@ if command -v make >/dev/null 2>&1; then
         "$(ls "$work/dest/usr/share/applications" | wc -l | tr -d ' ')" '0'
 fi
 
+# ---- Windows installer ----
+
+# The installer runs sbm-setup with the PATH of Windows. That PATH has no
+# Cygwin tools.
+case $(uname -s) in
+    CYGWIN*)
+        XDG_DATA_HOME="$work/setup" PATH="$work/nobin" \
+            "$(command -v "${SBM_SH:-sh}")" "$top/contrib/windows/sbm-setup" data 2>/dev/null
+        eq 'sbm-setup finds the Cygwin tools when the PATH has none' \
+            "$([ -d "$work/setup/sbm" ] && echo yes)" 'yes'
+        ;;
+esac
+
 # ---- defaults ----
 
 (

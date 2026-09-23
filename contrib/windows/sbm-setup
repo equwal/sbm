@@ -6,6 +6,10 @@
 #                       and keep the files that the user has
 #     sbm-setup stop    stop the bm-watch that the installer started
 
+# The installer starts this script with the PATH of Windows. That PATH does
+# not have the Cygwin tools, for example tr, mkdir and cp.
+PATH=/usr/bin:$PATH
+
 case ${1-} in
     data)
         d=${XDG_DATA_HOME:-$HOME/.local/share}/sbm
