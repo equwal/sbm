@@ -21,9 +21,12 @@ case ${1-} in
     stop)
         # The hidden mintty of bm-watch has the class sbm-watch. When it
         # stops, bm-watch gets SIGHUP and stops too. Cygwin shows the
-        # arguments of a process in /proc/PID/cmdline.
+        # arguments of a process in /proc/PID/cmdline. A process can stop
+        # during the loop, for example bm-watch after its mintty. Then the
+        # shell cannot open its file: 2>/dev/null comes first, so the shell
+        # writes that error to /dev/null.
         for f in /proc/[0-9]*/cmdline; do
-            case $(tr '\0' ' ' < "$f" 2>/dev/null) in
+            case $(tr '\0' ' ' 2>/dev/null < "$f") in
                 *'--class sbm-watch '*)
                     pid=${f#/proc/}
                     kill "${pid%/cmdline}" 2>/dev/null
