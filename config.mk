@@ -1,4 +1,4 @@
-VERSION=0.5
+VERSION=0.6
 SHELL = /bin/sh
 
 PREFIX=/usr/local
