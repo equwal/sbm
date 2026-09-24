@@ -1022,9 +1022,10 @@ eq 'bm-html has one inline script, a filter box hidden without it, and ?q=' \
     "$(printf '%s\n' "$page" | grep -c '<script>') $(printf '%s\n' "$page" | grep -c '<input id=q type=search placeholder="filter 3 bookmarks" hidden>') $(printf '%s\n' "$page" | grep -c 'URLSearchParams(location.search).get("q")')" \
     '1 1 1'
 eq 'bm-html loads nothing from elsewhere' "$(printf '%s\n' "$page" | grep -c -e ' src=' -e '<link' -e '@import')" '0'
-eq 'bm-html has a preview pane that only its script shows, with a sandboxed frame and no referrer' \
-    "$(printf '%s\n' "$page" | grep -c '^<aside id=preview hidden>') $(printf '%s\n' "$page" | grep -c '<iframe title="Preview of the page" sandbox="allow-scripts allow-same-origin" referrerpolicy=no-referrer></iframe></aside>') $(printf '%s\n' "$page" | grep -c 'pane.hidden=false')" \
-    '1 1 1'
+# Most sites do not let a page of another site show them in a frame
+# (X-Frame-Options or frame-ancestors), YouTube among them, so a preview in
+# a frame stays empty for them.
+eq 'bm-html shows no page in a frame' "$(printf '%s\n' "$page" | grep -ci 'iframe')" '0'
 eq 'bm-html is a filter' "$($BM -t lib -l | $HTML - | grep -c '^<li>')" '2'
 eq 'bm-html reads the bookmark file by default, whatever stdin is' \
     "$($HTML </dev/null | grep -c '^<li>')" '4'

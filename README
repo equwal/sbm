@@ -152,13 +152,9 @@ bookmark file itself stays a plain list.
 
 One self-contained file: no server side, nothing loaded from elsewhere.
 Bookmarks are listed under each of their tags, with the tags linked at the
-top. Inline script adds a filter box and, in a wide window, a live preview:
-the page of the highlighted bookmark shows on the right. The arrow keys and
-the mouse move the highlight, and Enter opens it. The preview loads a page
-only when you type or point, in a sandboxed frame without a referrer; some
-sites do not let other pages show them. Without script the page is still the
-complete list, and Ctrl-F works. page.html?q=words starts out filtered, so
-the page can be a search keyword in your browser, or in bm:
+top. A dozen lines of inline script add a filter box; without script the page
+is still the complete list, and Ctrl-F works. page.html?q=words starts out
+filtered, so the page can be a search keyword in your browser, or in bm:
 
     b | https://example.org/bookmarks.html?q=%s
 

@@ -8,11 +8,10 @@
 # Without a file the default bookmark file is read; "-" is stdin.
 #
 # The page lists the bookmarks under each of their tags, with links to the
-# tags at the top. A few lines of script add a filter box and, in a wide
-# window, a live preview: the page of the highlighted bookmark. Without
-# script the page is still the complete list. page.html?q=words starts out
-# filtered, so the page can serve as a search engine keyword in a browser, or
-# in bm's own engines file:    b | https://example.org/bookmarks.html?q=%s
+# tags at the top. A few lines of script add a filter box; without script the
+# page is still the complete list. page.html?q=words starts out filtered, so
+# the page can serve as a search engine keyword in a browser, or in bm's own
+# engines file:    b | https://example.org/bookmarks.html?q=%s
 
 usage () {
     printf 'usage: bm-html [-t title] [file | -] ...\n'
@@ -80,18 +79,9 @@ END {
     print "body{max-width:50em;margin:1em auto;padding:0 1em;font:1em/1.5 sans-serif}"
     print "#q{width:100%;box-sizing:border-box;font:inherit;padding:.3em}"
     print "ul{padding-left:1.2em}small,.t{color:#777;font-size:.85em}.t{margin-left:.3em}"
-    print "li.sel{background:#e3eef3;box-shadow:0 0 0 .2em #e3eef3}"
-    print "#preview{display:none}#preview p{margin:0 0 .3em;color:#777;font-size:.85em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
-    print "#preview iframe{flex:1;width:100%;box-sizing:border-box;border:1px solid #ccc;background:#fff}"
-    print "@media(min-width:80em){body:has(#preview:not([hidden])){margin-left:1em}"
-    print "#preview:not([hidden]){display:flex;flex-direction:column;position:fixed;top:1em;bottom:1em;left:54em;right:1em}}"
     print "</style>"
     print "<h1>" t "</h1>"
     print "<input id=q type=search placeholder=\"filter " total " bookmarks\" hidden>"
-    # The live preview: the page of the highlighted bookmark, on the right
-    # of a wide window. The script shows it.
-    print "<aside id=preview hidden><p>Type in the filter, or point at a bookmark, to see its page here.</p>"
-    print "<iframe title=\"Preview of the page\" sandbox=\"allow-scripts allow-same-origin\" referrerpolicy=no-referrer></iframe></aside>"
     printf "<p>"
     for (i = 1; i <= count; i++)
         if (names[i] != "")
@@ -110,35 +100,6 @@ END {
     print "var t=(l.textContent+\" \"+l.firstChild.href).toLowerCase();"
     print "var ok=w.every(function(x){return t.indexOf(x)>=0});l.hidden=!ok;if(ok)n++});"
     print "s.hidden=!n})}"
-    # The live preview, as on sbm Sync: the arrow keys and the mouse move the
-    # highlight, Enter opens it, and the page loads when the highlight stays
-    # on it for 300 ms. On an https page an http bookmark loads as https,
-    # because a secure page cannot show an insecure frame. A page in the
-    # frame cannot keep the focus: the typing stays in the filter.
-    print "var pane=document.getElementById(\"preview\"),frame=pane.querySelector(\"iframe\"),cap=pane.querySelector(\"p\");"
-    print "var wide=matchMedia(\"(min-width:80em)\"),sel=0,started=false,timer=0,framed=null,pointer=\"\";"
-    print "function rows(){return Array.prototype.filter.call(document.querySelectorAll(\"li\"),function(l){return !l.hidden})}"
-    print "function address(l){var u;try{u=new URL(l.firstChild.href)}catch(e){return null}"
-    print "if(u.protocol!==\"http:\"&&u.protocol!==\"https:\")return null;"
-    print "if(location.protocol===\"https:\")u.protocol=\"https:\";return u.href}"
-    print "function load(to){if(to===framed)return;framed=to;frame.src=to||\"about:blank\"}"
-    print "function show(l){clearTimeout(timer);if(!wide.matches)return;var to=l?address(l):null;"
-    print "cap.textContent=!l?\"No bookmark to preview.\":to||\"No preview: this bookmark is not a web page.\";"
-    print "if(to)timer=setTimeout(function(){load(to)},300);else load(null)}"
-    print "function light(i){var r=rows();sel=Math.max(0,Math.min(r.length-1,i));"
-    print "document.querySelectorAll(\"li.sel\").forEach(function(l){l.className=\"\"});"
-    print "if(r[sel])r[sel].className=\"sel\";if(started)show(r[sel])}"
-    print "function point(e){var l=e.target.closest&&e.target.closest(\"li\");if(!l)return;started=true;light(rows().indexOf(l))}"
-    print "q.oninput=function(){started=true;f();light(0)};"
-    print "q.onkeydown=function(e){var r=rows();"
-    print "if(e.key===\"ArrowDown\"||e.key===\"ArrowUp\"){e.preventDefault();started=true;"
-    print "light(sel+(e.key===\"ArrowDown\"?1:-1));if(rows()[sel])rows()[sel].scrollIntoView({block:\"nearest\"})}"
-    print "else if(e.key===\"Enter\"&&r[sel]){if(e.ctrlKey||e.metaKey)open(r[sel].firstChild.href,\"_blank\",\"noopener\");"
-    print "else location.assign(r[sel].firstChild.href)}};"
-    print "document.addEventListener(\"mousemove\",function(e){var at=e.screenX+\",\"+e.screenY;if(at===pointer)return;pointer=at;point(e)});"
-    print "document.addEventListener(\"focusin\",point);"
-    print "wide.addEventListener(\"change\",function(){if(wide.matches)light(sel);else load(null)});"
-    print "addEventListener(\"blur\",function(){setTimeout(function(){if(document.activeElement===frame)q.focus({preventScroll:true})})});"
-    print "q.value=new URLSearchParams(location.search).get(\"q\")||\"\";started=q.value!==\"\";f();pane.hidden=false;light(0);"
+    print "q.oninput=f;q.value=new URLSearchParams(location.search).get(\"q\")||\"\";f();"
     print "</script>"
 }'
