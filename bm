@@ -658,6 +658,7 @@ if [ "$action" = help ]; then
 fi
 
 mkdir -p "$(dirname "$BOOKMARKS")" || die "cannot create directory for $BOOKMARKS"
+mkdir -p "$(dirname "$USERTAGS")"
 [ -e "$BOOKMARKS" ] || : > "$BOOKMARKS" || die "cannot create $BOOKMARKS"
 
 if awk '!/\t/ && !/^#/ && NF { found = 1; exit } END { exit !found }' "$BOOKMARKS"

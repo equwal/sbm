@@ -1330,5 +1330,14 @@ esac
 eq 'default bookmark file is created under XDG_DATA_HOME' \
     "$([ -f "$work/xdg/sbm/bookmarks" ] && echo yes)" 'yes'
 
+(
+    unset USERTAGS
+    XDG_DATA_HOME="$work/xdg2"
+    BOOKMARKS="$work/elsewhere/bookmarks"
+    printf 'https://tagged.example\tTagged\tnewtag\n' | $BM -m >/dev/null 2>&1
+)
+eq 'merge creates the usertags directory when BOOKMARKS lives elsewhere' \
+    "$(cat "$work/xdg2/sbm/usertags" 2>/dev/null)" 'newtag | '
+
 printf '\n%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
